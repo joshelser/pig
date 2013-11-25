@@ -31,7 +31,7 @@
     <conf name="default" extends="master,runtime"/>
     <conf name="runtime" extends="compile,test" description="runtime but not the artifact" />
     <!--Private configurations. -->
-    <conf name="compile" extends="hadoop${hadoopversion},hbase${hbaseversion}" visibility="private" description="compile artifacts"/>
+    <conf name="compile" extends="hadoop${hadoopversion},hbase${hbaseversion},accumulo${accumuloversion}" visibility="private" description="compile artifacts"/>
     <conf name="test" extends="compile" visibility="private"/>
     <conf name="javadoc" visibility="private" extends="compile,test"/>
     <conf name="releaseaudit" visibility="private"/>
@@ -42,6 +42,7 @@
     <conf name="hadoop23" visibility="private"/>
     <conf name="hbase94" visibility="private"/>
     <conf name="hbase95" visibility="private"/>
+    <conf name="accumulo15" visibility="private"/>
   </configurations>
   <publications>
     <artifact name="pig" conf="master"/>
@@ -357,6 +358,34 @@
        conf="test->default"/>
     <dependency org="com.yammer.metrics" name="metrics-core" rev="${metrics-core.version}"
        conf="test->default"/>
+
+    <dependency org="org.apache.accumulo" name="accumulo-core" rev="${accumulo15.version}" conf="accumulo15->master">
+      <exclude org="org.apache.zookeeper" module="zookeeper"/>
+    </dependency>
+
+    <dependency org="org.apache.accumulo" name="accumulo-fate" rev="${accumulo15.version}" conf="accumulo15->master">
+      <exclude org="org.apache.zookeeper" module="zookeeper"/>
+    </dependency>
+
+    <dependency org="org.apache.accumulo" name="accumulo-trace" rev="${accumulo15.version}" conf="accumulo15->master">
+      <exclude org="org.apache.zookeeper" module="zookeeper"/>
+    </dependency>
+
+    <dependency org="org.apache.accumulo" name="accumulo-minicluster" rev="${accumulo15.version}" conf="accumulo15->master">
+      <exclude org="org.apache.zookeeper" module="zookeeper"/>
+    </dependency>
+
+    <dependency org="org.apache.accumulo" name="accumulo-server" rev="${accumulo15.version}" conf="accumulo15->master">
+      <exclude org="org.apache.zookeeper" module="zookeeper"/>
+    </dependency>
+
+    <dependency org="org.apache.accumulo" name="accumulo-start" rev="${accumulo15.version}" conf="accumulo15->master" />
+    <dependency org="org.apache.commons" name="commons-vfs2" rev="2.0" conf="accumulo15->master" />
+    <dependency org="commons-logging" name="commons-logging-api" rev="1.0.4" conf="accumulo15->master" />
+    <dependency org="org.apache.commons" name="commons-jci-core" rev="1.0" conf="accumulo15->master" />
+    <dependency org="org.apache.commons" name="commons-jci-fam" rev="1.0" conf="accumulo15->master" />
+    <dependency org="org.apache.thrift" name="libthrift" rev="0.9.0" conf="accumulo15->master" />
+    <dependency org="com.beust" name="jcommander" rev="1.30" conf="accumulo15->master" />
 
     <!-- for piggybank -->
     <dependency org="hsqldb" name="hsqldb" rev="${hsqldb.version}"
