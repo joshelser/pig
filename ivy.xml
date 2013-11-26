@@ -362,33 +362,6 @@
     <dependency org="org.apache.accumulo" name="accumulo" rev="${accumulo15.version}" conf="accumulo15->default">
       <exclude org="org.apache.zookeeper" module="zookeeper"/>
     </dependency>
-<!--
-    <dependency org="org.apache.accumulo" name="accumulo-fate" rev="${accumulo15.version}" conf="accumulo15->master">
-      <exclude org="org.apache.zookeeper" module="zookeeper"/>
-    </dependency>
-
-    <dependency org="org.apache.accumulo" name="accumulo-trace" rev="${accumulo15.version}" conf="accumulo15->master">
-      <exclude org="org.apache.zookeeper" module="zookeeper"/>
-    </dependency>
-
-    <dependency org="org.apache.accumulo" name="accumulo-minicluster" rev="${accumulo15.version}" conf="accumulo15->master">
-      <exclude org="org.apache.zookeeper" module="zookeeper"/>
-    </dependency>
-
-    <dependency org="org.apache.accumulo" name="accumulo-server" rev="${accumulo15.version}" conf="accumulo15->master">
-      <exclude org="org.apache.zookeeper" module="zookeeper"/>
-    </dependency>
-
-    <dependency org="org.apache.accumulo" name="accumulo-start"
-                rev="${accumulo15.version}" conf="accumulo15->master"
-                />
-    <dependency org="org.apache.commons" name="commons-vfs2" rev="2.0" conf="accumulo15->master" />
-    <dependency org="commons-logging" name="commons-logging-api" rev="1.0.4" conf="accumulo15->master" />
-    <dependency org="org.apache.commons" name="commons-jci-core" rev="1.0" conf="accumulo15->master" />
-    <dependency org="org.apache.commons" name="commons-jci-fam" rev="1.0" conf="accumulo15->master" />
-    <dependency org="org.apache.thrift" name="libthrift" rev="0.9.0" conf="accumulo15->master" />
-    <dependency org="com.beust" name="jcommander" rev="1.30" conf="accumulo15->master" />
--->    
 
     <!-- for piggybank -->
     <dependency org="hsqldb" name="hsqldb" rev="${hsqldb.version}"
