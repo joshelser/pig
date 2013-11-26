@@ -881,7 +881,7 @@
             </assertions>
 
         </junit>
-        <!--delete unless="tests.failed" dir="${junit.tmp.dir}/"/-->
+        <delete dir="${junit.tmp.dir}/"/>
         <fail if="tests.failed">Tests failed!</fail>
       </sequential>
     </macrodef>
@@ -1550,6 +1550,10 @@
      <target name="ivy-test" depends="ivy-resolve" description="Retrieve Ivy-managed artifacts for test configuration">
        <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
                  pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}" conf="test"/>
+     </target>
+
+     <target name="ivy-dependency-report" depends="init" description="-->report on ivy dependencies">
+       <ivy:report todir="${build.ivy.report.dir}" />
      </target>
 
      <target name="ivy-javadoc" depends="ivy-resolve" description="Retrieve Ivy-managed artifacts for javadoc configuration">
