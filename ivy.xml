@@ -353,80 +353,9 @@
     <dependency org="com.yammer.metrics" name="metrics-core" rev="${metrics-core.version}"
        conf="test->default"/>
 
-    <!-- Accumulo dependencies -->
-    <dependency org="org.apache.accumulo" name="accumulo-core" rev="${accumulo15.version}" conf="accumulo15->master">
-      <exclude org="com.google.guava" module="guava"/>
-      <exclude org="commons-codec" module="commons-codec"/>
-      <exclude org="commons-collections" module="commons-collections"/>
-      <exclude org="commons-configuration" module="commons-configuration"/>
-      <exclude org="commons-io" module="commons-io"/>
-      <exclude org="commons-lang" module="commons-lang"/>
-      <exclude org="commons-logging" module="commons-logging"/>
-      <exclude org="log4j" module="log4j"/>
-      <exclude org="org.apache.hadoop" module="hadoop-client"/>
-      <exclude org="org.apache.zookeeper" module="zookeeper"/>
-      <exclude org="org.slf4j" module="slf4j-api"/>
-      <exclude org="org.slf4j" module="slf4j-log4j12"/>
-    </dependency>
-
-    <dependency org="org.apache.accumulo" name="accumulo-fate" rev="${accumulo15.version}" conf="accumulo15->master">
-      <exclude org="commons-io" module="commons-io"/>
-      <exclude org="commons-lang" module="commons-lang"/>
-      <exclude org="commons-logging" module="commons-logging"/>
-      <exclude org="log4j" module="log4j"/>
-      <exclude org="org.apache.hadoop" module="hadoop-client"/>
+    <dependency org="org.apache.accumulo" name="accumulo" rev="${accumulo15.version}" conf="accumulo15->default">
       <exclude org="org.apache.zookeeper" module="zookeeper"/>
     </dependency>
-
-    <dependency org="org.apache.accumulo" name="accumulo-trace" rev="${accumulo15.version}" conf="accumulo15->master">
-      <exclude org="commons-io" module="commons-io"/>
-      <exclude org="commons-logging" module="commons-logging"/>
-      <exclude org="log4j" module="log4j"/>
-      <exclude org="org.apache.hadoop" module="hadoop-client"/>
-      <exclude org="org.apache.zookeeper" module="zookeeper"/>
-      <exclude org="org.slf4j" module="slf4j-api"/>
-      <exclude org="org.slf4j" module="slf4j-log4j12"/>
-    </dependency>
-
-    <dependency org="org.apache.accumulo" name="accumulo-minicluster" rev="${accumulo15.version}" conf="accumulo15->master">
-      <exclude org="commons-io" module="commons-io"/>
-      <exclude org="commons-logging" module="commons-logging"/>
-      <exclude org="log4j" module="log4j"/>
-      <exclude org="org.apache.hadoop" module="hadoop-client"/>
-      <exclude org="org.apache.zookeeper" module="zookeeper"/>
-      <exclude org="org.slf4j" module="slf4j-api"/>
-      <exclude org="org.slf4j" module="slf4j-log4j12"/>
-    </dependency>
-
-    <dependency org="org.apache.accumulo" name="accumulo-server" rev="${accumulo15.version}" conf="accumulo15->master">
-      <exclude org="commons-codec" module="commons-codec"/>
-      <exclude org="commons-collections" module="commons-collections"/>
-      <exclude org="commons-configuration" module="commons-configuration"/>
-      <exclude org="commons-lang" module="commons-lang"/>
-      <exclude org="com.google.guava" module="guava"/>
-      <exclude org="commons-io" module="commons-io"/>
-      <exclude org="commons-logging" module="commons-logging"/>
-      <exclude org="log4j" module="log4j"/>
-      <exclude org="org.apache.hadoop" module="hadoop-client"/>
-      <exclude org="org.apache.zookeeper" module="zookeeper"/>
-      <exclude org="org.slf4j" module="slf4j-api"/>
-      <exclude org="org.slf4j" module="slf4j-log4j12"/>
-    </dependency>
-
-    <dependency org="org.apache.accumulo" name="accumulo-start" rev="${accumulo15.version}" conf="accumulo15->master">
-      <exclude org="commons-io" module="commons-io"/>
-      <exclude org="commons-logging" module="commons-logging"/>
-      <exclude org="log4j" module="log4j"/>
-      <exclude org="org.apache.hadoop" module="hadoop-client"/>
-    </dependency>
-
-    <!-- Other dependencies needed by Accumulo which aren't being pulled in transitively -->
-    <dependency org="org.apache.commons" name="commons-vfs2" rev="2.0" conf="accumulo15->master" />
-    <dependency org="commons-logging" name="commons-logging-api" rev="1.0.4" conf="accumulo15->master" />
-    <dependency org="org.apache.commons" name="commons-jci-core" rev="1.0" conf="accumulo15->master" />
-    <dependency org="org.apache.commons" name="commons-jci-fam" rev="1.0" conf="accumulo15->master" />
-    <dependency org="org.apache.thrift" name="libthrift" rev="0.9.0" conf="accumulo15->master" />
-    <dependency org="com.beust" name="jcommander" rev="1.30" conf="accumulo15->master" />
 
     <!-- for piggybank -->
     <dependency org="hsqldb" name="hsqldb" rev="${hsqldb.version}"
