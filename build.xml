@@ -1552,10 +1552,6 @@
                  pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}" conf="test"/>
      </target>
 
-     <target name="ivy-dependency-report" depends="init" description="-->report on ivy dependencies">
-       <ivy:report todir="${build.ivy.report.dir}" />
-     </target>
-
      <target name="ivy-javadoc" depends="ivy-resolve" description="Retrieve Ivy-managed artifacts for javadoc configuration">
        <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
                  pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}" conf="javadoc"/>
