@@ -232,13 +232,10 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
   public void setLocation(String location, Job job) throws IOException {
     setLocationFromUri(location);
 
-    // TODO Hadoop-1.0.0's Configuration class doesn't have unset
-    // so we have to do other trickery to make sure this isn't invoked multiple times
     Map<String,String> entries = getInputFormatEntries(job.getConfiguration());
     for (String key : entries.keySet()) {
       job.getConfiguration().unset(key);
     }
-    
 
     try {
       AccumuloInputFormat.setConnectorInfo(job, user, new PasswordToken(password));

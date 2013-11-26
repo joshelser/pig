@@ -34,7 +34,6 @@ import com.google.common.collect.Lists;
 public class AccumuloStorage extends AbstractAccumuloStorage {
   private static final Logger log = Logger.getLogger(AccumuloStorage.class);
   private static final String COMMA = ",", COLON = ":";
-  private static final Text EMPTY_TEXT = new Text(new byte[0]);
   
   public static final String METADATA_SUFFIX = "_metadata";
   
@@ -72,7 +71,6 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
   
   @Override
   protected Tuple getTuple(Key key, Value value) throws IOException {
-//    System.out.println(key);
     SortedMap<Key,Value> rowKVs = WholeRowIterator.decodeRow(key, value);
     
     List<Object> tupleEntries = Lists.newLinkedList();

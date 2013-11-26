@@ -53,14 +53,13 @@ import org.junit.Test;
 public class AbstractAccumuloStorageTest {
   
   public static void assertConfigurationsEqual(Configuration expectedConf, Configuration actualConf) {
-    // Basically, for all the keys in expectedConf, make sure the values in both confs are equal
+    // Make sure the values in both confs are equal
     Iterator<Entry<String,String>> expectedIter = expectedConf.iterator();
     while (expectedIter.hasNext()) {
       Entry<String,String> e = expectedIter.next();
       assertEquals("Values differed for " + e.getKey(), expectedConf.get(e.getKey()), actualConf.get(e.getKey()));
     }
     
-    // Basically, for all the keys in actualConf, make sure the values in both confs are equal
     Iterator<Entry<String,String>> actualIter = actualConf.iterator();
     while (actualIter.hasNext()) {
       Entry<String,String> e = actualIter.next();
