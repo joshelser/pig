@@ -43,6 +43,9 @@ import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.util.Pair;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.ParseException;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -86,6 +89,9 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
 
   private static final String INPUT_PREFIX = AccumuloInputFormat.class.getSimpleName();
   private static final String OUTPUT_PREFIX = AccumuloOutputFormat.class.getSimpleName();
+  
+  protected final AccumuloStorageOptions storageOptions;
+  protected final CommandLine commandLine;
 
   private RecordReader<Key,Value> reader;
   private RecordWriter<Text,Mutation> writer;
@@ -96,7 +102,6 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
   String password;
   String table;
   Text tableName;
-  String auths;
   Authorizations authorizations;
   List<Pair<Text,Text>> cfCqPairs = new LinkedList<Pair<Text,Text>>();
 
@@ -111,7 +116,48 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
   protected ResourceSchema schema;
   protected String contextSignature = null;
 
-  public AbstractAccumuloStorage() {}
+  public AbstractAccumuloStorage(String args) throws ParseException {
+    storageOptions = new AccumuloStorageOptions();
+    
+    commandLine = storageOptions.getCommandLine(args);
+    
+    extractArgs(commandLine, storageOptions);
+  }
+  
+  /**
+   * Extract arguments passed into the constructor to avoid the URI
+   * @param cli
+   * @param opts
+   */
+  protected void extractArgs(CommandLine cli, AccumuloStorageOptions opts) {
+    String fetchColumns = cli.getOptionValue(AccumuloStorageOptions.FETCH_COLUMNS_OPTION.getOpt(), "");
+    if (!StringUtils.isBlank(fetchColumns)) {
+      setFetchColumns(fetchColumns);
+    }
+    
+    if (opts.hasAuthorizations(cli)) {
+      authorizations = opts.getAuthorizations(cli);
+    }
+    
+    this.start = cli.getOptionValue(AccumuloStorageOptions.START_ROW_OPTION.getOpt(), null);
+    this.end = cli.getOptionValue(AccumuloStorageOptions.END_ROW_OPTION.getOpt(), null);
+    
+    if (cli.hasOption(AccumuloStorageOptions.MAX_LATENCY_OPTION.getOpt())) {
+      this.maxLatency = opts.getInt(cli, AccumuloStorageOptions.MAX_LATENCY_OPTION);
+    }
+    
+    if (cli.hasOption(AccumuloStorageOptions.WRITE_THREADS_OPTION.getOpt())) {
+      this.maxWriteThreads = opts.getInt(cli, AccumuloStorageOptions.WRITE_THREADS_OPTION);
+    }
+    
+    if (cli.hasOption(AccumuloStorageOptions.MUTATION_BUFFER_SIZE_OPTION.getOpt())) {
+      this.maxMutationBufferSize = opts.getLong(cli, AccumuloStorageOptions.MUTATION_BUFFER_SIZE_OPTION);
+    }
+  }
+  
+  protected CommandLine getCommandLine() {
+    return commandLine;
+  }
 
   protected Map<String,String> getInputFormatEntries(Configuration conf) {
     return getEntries(conf, INPUT_PREFIX);
@@ -227,7 +273,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
   private void setLocationFromUri(String location) throws IOException {
     // ex:
     // accumulo://table1?instance=myinstance&user=root&password=secret&zookeepers=127.0.0.1:2181&auths=PRIVATE,PUBLIC&fetch_columns=col1:cq1,col2:cq2&start=abc&end=z
-    String columns = "";
+    String columns = "", auths = "";
     try {
       if (!location.startsWith("accumulo://"))
         throw new Exception("Bad scheme.");
@@ -263,14 +309,14 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
       table = parts[1];
       tableName = new Text(table);
 
-      if (auths == null || auths.equals("")) {
+      if (null == authorizations && auths == null) {
         authorizations = new Authorizations();
       } else {
-        authorizations = new Authorizations(auths.split(COMMA));
+        authorizations = new Authorizations(StringUtils.split(auths, COMMA));
       }
 
       if (!StringUtils.isEmpty(columns)) {
-        setColumns(columns);
+        setFetchColumns(columns);
       }
 
     } catch (Exception e) {
@@ -285,7 +331,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
    * Parses a comma-separated list of colon-delimited pairs which correspond to column family and column qualifier
    * @param columns A comma-separated of colon-delimited column-family:column qualifier pairs.
    */
-  protected void setColumns(String columns) {
+  protected void setFetchColumns(String columns) {
     for (String cfCq : columns.split(COMMA)) {
       int index = cfCq.indexOf(COLON);
       if (-1 == index) {

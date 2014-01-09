@@ -40,6 +40,7 @@ import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.iterators.user.WholeRowIterator;
 import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.util.Pair;
+import org.apache.commons.cli.ParseException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
@@ -179,8 +180,8 @@ public class AbstractAccumuloStorageTest {
     return "accumulo://table1?instance=myinstance&user=root&password=secret&zookeepers=127.0.0.1:2181&write_buffer_size_bytes=1234000&write_threads=7&write_latency_ms=30000";
   }
   
-  public AbstractAccumuloStorage getAbstractAccumuloStorage() {
-    AbstractAccumuloStorage s = new AbstractAccumuloStorage() {
+  public AbstractAccumuloStorage getAbstractAccumuloStorage() throws ParseException {
+    AbstractAccumuloStorage s = new AbstractAccumuloStorage("") {
       
       @Override
       public Collection<Mutation> getMutations(Tuple tuple) {
@@ -196,7 +197,7 @@ public class AbstractAccumuloStorageTest {
   }
   
   @Test
-  public void testSetLoadLocation() throws IOException {
+  public void testSetLoadLocation() throws IOException, ParseException {
     AbstractAccumuloStorage s = getAbstractAccumuloStorage();
     
     Job actual = new Job();
@@ -210,7 +211,7 @@ public class AbstractAccumuloStorageTest {
   }
   
   @Test
-  public void testSetStoreLocation() throws IOException {
+  public void testSetStoreLocation() throws IOException, ParseException {
     AbstractAccumuloStorage s = getAbstractAccumuloStorage();
     
     Job actual = new Job();

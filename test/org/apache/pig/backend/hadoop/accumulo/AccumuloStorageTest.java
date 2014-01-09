@@ -28,6 +28,7 @@ import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Mutation;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.iterators.user.WholeRowIterator;
+import org.apache.commons.cli.ParseException;
 import org.apache.pig.data.DataByteArray;
 import org.apache.pig.data.InternalMap;
 import org.apache.pig.data.Tuple;
@@ -41,7 +42,7 @@ import com.google.common.collect.Maps;
 public class AccumuloStorageTest {
   
   @Test
-  public void test1Tuple() throws IOException {
+  public void test1Tuple() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage();
     
     Tuple t = TupleFactory.getInstance().newTuple(1);
@@ -53,7 +54,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void test2TupleNoColumn() throws IOException {
+  public void test2TupleNoColumn() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage();
     
     Tuple t = TupleFactory.getInstance().newTuple(2);
@@ -64,7 +65,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void test2TupleWithColumn() throws IOException {
+  public void test2TupleWithColumn() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage("col");
     
     Tuple t = TupleFactory.getInstance().newTuple(2);
@@ -89,8 +90,8 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void test2TupleWithColumnQual() throws IOException {
-    AccumuloStorage storage = new AccumuloStorage("col:qual");
+  public void test2TupleWithColumnQual() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage(AccumuloStorageOptions.FETCH_COLUMNS_OPTION.getOpt() + " col:qual");
     
     Tuple t = TupleFactory.getInstance().newTuple(2);
     t.set(0, "row");
@@ -114,7 +115,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void test2TupleWithMixedColumns() throws IOException {
+  public void test2TupleWithMixedColumns() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage("col1,col1:qual,col2:qual,col2");
     
     Tuple t = TupleFactory.getInstance().newTuple(5);
@@ -157,7 +158,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testIgnoredExtraColumns() throws IOException {
+  public void testIgnoredExtraColumns() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage("col");
     
     Tuple t = TupleFactory.getInstance().newTuple(3);
@@ -183,7 +184,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testNonIgnoredExtraAsMap() throws IOException {
+  public void testNonIgnoredExtraAsMap() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage("col");
     
     Map<String,Object> map = Maps.newHashMap();
@@ -229,7 +230,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testMapWithColFam() throws IOException {
+  public void testMapWithColFam() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage("col");
     
     Map<String,Object> map = Maps.newHashMap();
@@ -273,7 +274,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testMapWithColFamColQualPrefix() throws IOException {
+  public void testMapWithColFamColQualPrefix() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage("col:qual_");
     
     Map<String,Object> map = Maps.newHashMap();
@@ -317,7 +318,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testSingleKey() throws IOException {
+  public void testSingleKey() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage();
     
     List<Key> keys = Lists.newArrayList();
@@ -342,7 +343,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testSingleColumn() throws IOException {
+  public void testSingleColumn() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage();
     
     List<Key> keys = Lists.newArrayList();
@@ -374,8 +375,8 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testMultipleColumnsAggregateColfams() throws IOException {
-    AccumuloStorage storage = new AccumuloStorage(true);
+  public void testMultipleColumnsAggregateColfams() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage(AccumuloStorageOptions.AGGREGATE_COLUMNS_OPTION.getOpt());
     
     List<Key> keys = Lists.newArrayList();
     List<Value> values = Lists.newArrayList();
@@ -423,8 +424,9 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testMultipleColumnsNoColfamAggregate() throws IOException {
-    AccumuloStorage storage = new AccumuloStorage(false);
+  public void testMultipleColumnsNoColfamAggregate() throws IOException, ParseException {
+    // Aggregate defaults to off
+    AccumuloStorage storage = new AccumuloStorage();
     
     List<Key> keys = Lists.newArrayList();
     List<Value> values = Lists.newArrayList();

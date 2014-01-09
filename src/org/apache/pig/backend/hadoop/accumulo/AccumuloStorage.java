@@ -33,6 +33,8 @@ import org.apache.accumulo.core.data.Mutation;
 import org.apache.accumulo.core.data.PartialKey;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.iterators.user.WholeRowIterator;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.ParseException;
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
@@ -85,41 +87,8 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
    * Creates an AccumuloStorage which writes all values in a {@link Tuple} with an empty column family
    * and doesn't group column families together on read (creates on {@link Map} for all columns)
    */
-  public AccumuloStorage() {
+  public AccumuloStorage() throws ParseException {
     this(EMPTY);
-  }
-  
-  /**
-   * Creates an AccumuloStorage with CSV of column families to use on write that doesn't group 
-   * column families together on read (creates one {@link Map} for all columns) 
-   * @param columns
-   *          A comma-separated list of column families to use when writing data, aligned to the n'th entry in the Tuple
-   */
-  public AccumuloStorage(String columns) {
-    this(columns, false);
-  }
-  
-  /**
-   * Creates an AccumuloStorage which writes all values in a {@link Tuple} with an empty column family
-   * and defers to the provided argument as to whether or not column families are grouped together
-   * on read.
-   * @param aggregateColfams
-   *          Should unique column qualifier and value pairs be grouped together by column family when reading data
-   */
-  public AccumuloStorage(boolean aggregateColfams) {
-    this(EMPTY, aggregateColfams);
-  }
-  
-  /**
-   * Create an AccumuloStorage with a CSV of columns families to use on write and whether columns in a row
-   * should be grouped by family on read. 
-   * @param columns
-   *          A comma-separated list of column families to use when writing data, aligned to the n'th entry in the tuple
-   * @param aggregateColfams 
-   *          Should unique column qualifier and value pairs be grouped together by column family when reading data
-   */
-  public AccumuloStorage(String columns, String aggregateColfams) {
-    this(columns, Boolean.parseBoolean(aggregateColfams));
   }
   
   /**
@@ -130,18 +99,27 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
    * @param aggregateColfams 
    *          Should unique column qualifier and value pairs be grouped together by column family when reading data
    */
-  public AccumuloStorage(String columns, boolean aggregateColfams) {
-    this.caster = new Utf8StorageConverter();
-    this.aggregateColfams = aggregateColfams;
+  public AccumuloStorage(String args) throws ParseException {
+    super(args);
     
+    CommandLine cli = getCommandLine();
+    this.caster = new Utf8StorageConverter();
+    
+    this.aggregateColfams = cli.hasOption(AccumuloStorageOptions.AGGREGATE_COLUMNS_OPTION.getOpt());
+    
+    String writeColumns = cli.getOptionValue(AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt(), "");
     // TODO It would be nice to have some other means than enumerating
     // the CF for every column in the Tuples we're going process
-    if (!StringUtils.isBlank(columns)) {
-      String[] columnArray = StringUtils.split(columns, COMMA);
+    if (!StringUtils.isBlank(writeColumns)) {
+      String[] columnArray = StringUtils.split(writeColumns, COMMA);
       columnSpecs = Lists.newArrayList(columnArray);
     } else {
       columnSpecs = Collections.emptyList();
     }
+    
+
+    
+    
   }
   
   @Override

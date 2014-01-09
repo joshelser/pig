@@ -21,6 +21,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.apache.commons.cli.ParseException;
 import org.apache.hadoop.conf.Configuration;
 import org.junit.Assert;
 import org.junit.Before;
@@ -33,7 +34,7 @@ public class AccumuloStorageConfigurationTest {
   protected AccumuloStorage storage;
   
   @Before
-  public void setup() {
+  public void setup() throws ParseException {
     storage = new AccumuloStorage();
     
     original = new Configuration();
