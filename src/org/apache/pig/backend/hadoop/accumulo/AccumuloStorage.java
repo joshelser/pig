@@ -47,9 +47,31 @@ import org.apache.pig.data.TupleFactory;
 
 import com.google.common.collect.Lists;
 
+/**
+ * Basic PigStorage implementation that uses Accumulo as the backing store.
+ * 
+ * <p>
+ * When writing data, the first entry in the {@link Tuple} is treated as the 
+ * row in the Accumulo key, while subsequent entries in the tuple are handled
+ * as columns in that row. {@link Map}s are expanded, placing the map key in 
+ * the column family and the map value in the Accumulo value. Scalars are placed
+ * directly into the value with an empty column qualifier. If the columns argument
+ * on the constructor is omitted, null or the empty String, no column family is provided
+ * on the Keys created for Accumulo
+ * </p>
+ * 
+ * <p>
+ * When reading data, if aggregateColfams is true, elements in the same row and column
+ * family are aggregated into a single {@link Map}. This will result in a {@link Tuple} of
+ * length (unique_column_families + 1) for the given row. If aggregateColfams is false, column 
+ * family and column qualifier are concatenated (separated by a colon), and placed into a 
+ * {@link Map}. This will result in a {@link Tuple} with two entries, where the latter element
+ * has a number of elements equal to the number of columns in the given row.
+ * </p>
+ */
 public class AccumuloStorage extends AbstractAccumuloStorage {
   private static final Logger log = Logger.getLogger(AccumuloStorage.class);
-  private static final String COMMA = ",", COLON = ":";
+  private static final String COMMA = ",", COLON = ":", EMPTY = "";
   
   public static final String METADATA_SUFFIX = "_metadata";
   
@@ -59,18 +81,20 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
   // Not sure if AccumuloStorage instances need to be thread-safe or not
   final Text _cfHolder = new Text(), _cqHolder = new Text();
   
-  public AccumuloStorage() {
-    this("");
-  }
   
-  public AccumuloStorage(boolean aggregateColfams) {
-    this("", aggregateColfams);
+  public AccumuloStorage() {
+    this(EMPTY);
   }
   
   public AccumuloStorage(String columns) {
     this(columns, false);
   }
   
+  /**
+   * Create AccumuloStorage with a CSV of columns to fetch 
+   * @param columns
+   * @param aggregateColfams Should unique column qualifier and value pairs be grouped together by column family
+   */
   public AccumuloStorage(String columns, boolean aggregateColfams) {
     this.caster = new Utf8StorageConverter();
     this.aggregateColfams = aggregateColfams;
