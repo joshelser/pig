@@ -81,19 +81,54 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
   // Not sure if AccumuloStorage instances need to be thread-safe or not
   final Text _cfHolder = new Text(), _cqHolder = new Text();
   
-  
+  /**
+   * Creates an AccumuloStorage which writes all values in a {@link Tuple} with an empty column family
+   * and doesn't group column families together on read (creates on {@link Map} for all columns)
+   */
   public AccumuloStorage() {
     this(EMPTY);
   }
   
+  /**
+   * Creates an AccumuloStorage with CSV of column families to use on write that doesn't group 
+   * column families together on read (creates one {@link Map} for all columns) 
+   * @param columns
+   *          A comma-separated list of column families to use when writing data, aligned to the n'th entry in the Tuple
+   */
   public AccumuloStorage(String columns) {
     this(columns, false);
   }
   
   /**
-   * Create AccumuloStorage with a CSV of columns to fetch 
+   * Creates an AccumuloStorage which writes all values in a {@link Tuple} with an empty column family
+   * and defers to the provided argument as to whether or not column families are grouped together
+   * on read.
+   * @param aggregateColfams
+   *          Should unique column qualifier and value pairs be grouped together by column family when reading data
+   */
+  public AccumuloStorage(boolean aggregateColfams) {
+    this(EMPTY, aggregateColfams);
+  }
+  
+  /**
+   * Create an AccumuloStorage with a CSV of columns families to use on write and whether columns in a row
+   * should be grouped by family on read. 
    * @param columns
-   * @param aggregateColfams Should unique column qualifier and value pairs be grouped together by column family
+   *          A comma-separated list of column families to use when writing data, aligned to the n'th entry in the tuple
+   * @param aggregateColfams 
+   *          Should unique column qualifier and value pairs be grouped together by column family when reading data
+   */
+  public AccumuloStorage(String columns, String aggregateColfams) {
+    this(columns, Boolean.parseBoolean(aggregateColfams));
+  }
+  
+  /**
+   * Create an AccumuloStorage with a CSV of columns-families to use on write and whether columns in a row
+   * should be grouped by family on read. 
+   * @param columns
+   *          A comma-separated list of column families to use when writing data, aligned to the n'th entry in the tuple
+   * @param aggregateColfams 
+   *          Should unique column qualifier and value pairs be grouped together by column family when reading data
    */
   public AccumuloStorage(String columns, boolean aggregateColfams) {
     this.caster = new Utf8StorageConverter();
