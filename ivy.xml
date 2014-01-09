@@ -31,7 +31,7 @@
     <conf name="default" extends="master,runtime"/>
     <conf name="runtime" extends="compile,test" description="runtime but not the artifact" />
     <!--Private configurations. -->
-    <conf name="compile" extends="hadoop${hadoopversion},hbase${hbaseversion},accumulo${accumuloversion}" visibility="private" description="compile artifacts"/>
+    <conf name="compile" extends="hadoop${hadoopversion},hbase${hbaseversion}" visibility="private" description="compile artifacts"/>
     <conf name="test" extends="compile" visibility="private"/>
     <conf name="javadoc" visibility="private" extends="compile,test"/>
     <conf name="releaseaudit" visibility="private"/>
@@ -42,7 +42,6 @@
     <conf name="hadoop23" visibility="private"/>
     <conf name="hbase94" visibility="private"/>
     <conf name="hbase95" visibility="private"/>
-    <conf name="accumulo15" visibility="private"/>
   </configurations>
   <publications>
     <artifact name="pig" conf="master"/>
@@ -360,7 +359,7 @@
        conf="test->default"/>
 
     <!-- Dependency for Accumulo{Input,Output}Format -->
-    <dependency org="org.apache.accumulo" name="accumulo-core" rev="${accumulo15.version}" conf="accumulo15->default">
+    <dependency org="org.apache.accumulo" name="accumulo-core" rev="${accumulo15.version}" conf="compile->default">
       <exclude org="com.google.guava" module="guava"/>
       <exclude org="commons-codec" module="commons-codec"/>
       <exclude org="commons-collections" module="commons-collections"/>
@@ -376,7 +375,7 @@
     </dependency>
 
     <!-- Used for 'functional' Accumulo tests -->
-    <dependency org="org.apache.accumulo" name="accumulo-minicluster" rev="${accumulo15.version}" conf="accumulo15->default">
+    <dependency org="org.apache.accumulo" name="accumulo-minicluster" rev="${accumulo15.version}" conf="compile->default">
       <exclude org="com.google.guava" module="guava"/>
       <exclude org="commons-codec" module="commons-codec"/>
       <exclude org="commons-collections" module="commons-collections"/>
