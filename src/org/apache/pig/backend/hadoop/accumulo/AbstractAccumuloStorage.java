@@ -48,6 +48,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.Job;
@@ -307,6 +308,8 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
   @Override
   public void setLocation(String location, Job job) throws IOException {
     setLocationFromUri(location);
+    
+    loadDependentJars(job);
 
     Map<String,String> entries = getInputFormatEntries(job.getConfiguration());
     unsetEntriesFromConfiguration(job.getConfiguration(), entries);
@@ -335,6 +338,24 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     configureInputFormat(job);
   }
 
+  /**
+   * Ensure that Accumulo's dependent jars are added to the Configuration
+   * to alleviate the need for clients to REGISTER dependency jars. 
+   * @param job The Mapreduce Job object
+   * @throws IOException
+   */
+  protected void loadDependentJars(Job job) throws IOException {
+    // Thank you, HBase.
+    TableMapReduceUtil.addDependencyJars(job.getConfiguration(), 
+        org.apache.accumulo.trace.instrument.Tracer.class,
+        org.apache.accumulo.core.client.Instance.class,
+        org.apache.accumulo.fate.Fate.class,
+        org.apache.accumulo.server.tabletserver.TabletServer.class,
+        org.apache.zookeeper.ZooKeeper.class,
+        org.apache.thrift.TServiceClient.class
+        );
+  }
+  
   /**
    * Method to allow specific implementations to add more elements to the Job for reading data from Accumulo.
    * 
@@ -378,6 +399,8 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
 
   public void setStoreLocation(String location, Job job) throws IOException {
     setLocationFromUri(location);
+
+    loadDependentJars(job);
     
     Map<String,String> entries = getOutputFormatEntries(job.getConfiguration());
     unsetEntriesFromConfiguration(job.getConfiguration(), entries);
