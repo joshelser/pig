@@ -80,7 +80,7 @@ import org.joda.time.DateTime;
  * 
  */
 public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreFuncInterface {
-  private static final Log LOG = LogFactory.getLog(AbstractAccumuloStorage.class);
+  private static final Log log = LogFactory.getLog(AbstractAccumuloStorage.class);
 
   private static final String COLON = ":", COMMA = ",";
 
@@ -98,7 +98,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
   Text tableName;
   String auths;
   Authorizations authorizations;
-  List<Pair<Text,Text>> columnFamilyColumnQualifierPairs = new LinkedList<Pair<Text,Text>>();
+  List<Pair<Text,Text>> cfCqPairs = new LinkedList<Pair<Text,Text>>();
 
   String start = null;
   String end = null;
@@ -159,16 +159,16 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
         unset.invoke(conf, key);
       }
     } catch (NoSuchMethodException e) {
-      LOG.error("Could not invoke Configuration.unset method", e);
+      log.error("Could not invoke Configuration.unset method", e);
       throw new RuntimeException(e);
     } catch (IllegalAccessException e) {
-      LOG.error("Could not invoke Configuration.unset method", e);
+      log.error("Could not invoke Configuration.unset method", e);
       throw new RuntimeException(e);
     } catch (IllegalArgumentException e) {
-      LOG.error("Could not invoke Configuration.unset method", e);
+      log.error("Could not invoke Configuration.unset method", e);
       throw new RuntimeException(e);
     } catch (InvocationTargetException e) {
-      LOG.error("Could not invoke Configuration.unset method", e);
+      log.error("Could not invoke Configuration.unset method", e);
       throw new RuntimeException(e);
     }
   }
@@ -270,14 +270,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
       }
 
       if (!StringUtils.isEmpty(columns)) {
-        for (String cfCq : columns.split(COMMA)) {
-          if (cfCq.contains(COLON)) {
-            String[] c = cfCq.split(COLON);
-            columnFamilyColumnQualifierPairs.add(new Pair<Text,Text>(new Text(c[0]), new Text(c[1])));
-          } else {
-            columnFamilyColumnQualifierPairs.add(new Pair<Text,Text>(new Text(cfCq), null));
-          }
-        }
+        setColumns(columns);
       }
 
     } catch (Exception e) {
@@ -288,6 +281,23 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     }
   }
 
+  /**
+   * Parses a comma-separated list of colon-delimited pairs which correspond to column family and column qualifier
+   * @param columns A comma-separated of colon-delimited column-family:column qualifier pairs.
+   */
+  protected void setColumns(String columns) {
+    for (String cfCq : columns.split(COMMA)) {
+      int index = cfCq.indexOf(COLON);
+      if (-1 == index) {
+        cfCqPairs.add(new Pair<Text,Text>(new Text(cfCq), null));
+      } else {
+        final String cf = cfCq.substring(0, index);
+        final String cq = cfCq.substring(index + 1);
+        cfCqPairs.add(new Pair<Text,Text>(new Text(cf), new Text(cq)));
+      }
+    }
+  }
+  
   protected RecordWriter<Text,Mutation> getWriter() {
     return writer;
   }
@@ -324,14 +334,14 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     AccumuloInputFormat.setScanAuthorizations(job, authorizations);
     AccumuloInputFormat.setZooKeeperInstance(job, inst, zookeepers);
 
-    if (columnFamilyColumnQualifierPairs.size() > 0) {
-      LOG.info("columns: " + columnFamilyColumnQualifierPairs);
-      AccumuloInputFormat.fetchColumns(job, columnFamilyColumnQualifierPairs);
+    if (cfCqPairs.size() > 0) {
+      log.info("columns: " + cfCqPairs);
+      AccumuloInputFormat.fetchColumns(job, cfCqPairs);
     }
 
     Collection<Range> ranges = Collections.singleton(new Range(start, end));
 
-    LOG.info("Scanning Accumulo for " + ranges + " for table " + table);
+    log.info("Scanning Accumulo for " + ranges + " for table " + table);
 
     AccumuloInputFormat.setRanges(job, ranges);
 
@@ -420,7 +430,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     bwConfig.setMaxWriteThreads(maxWriteThreads);
     AccumuloOutputFormat.setBatchWriterOptions(job, bwConfig);
 
-    LOG.info("Writing data to " + table);
+    log.info("Writing data to " + table);
 
     configureOutputFormat(job);
   }
@@ -455,7 +465,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
   @Override
   public void checkSchema(ResourceSchema s) throws IOException {
     if (!(caster instanceof LoadStoreCaster)) {
-      LOG.error("Caster must implement LoadStoreCaster for writing to Accumulo.");
+      log.error("Caster must implement LoadStoreCaster for writing to Accumulo.");
       throw new IOException("Bad Caster " + caster.getClass());
     }
     schema = s;
@@ -504,7 +514,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
           return Long.parseLong(timestampString);
         } catch (NumberFormatException e) {
           final String msg = "Could not cast chararray into long: " + timestampString;
-          LOG.error(msg);
+          log.error(msg);
           throw new IOException(msg, e);
         }
       case DataType.DOUBLE:
@@ -523,7 +533,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
         BigInteger recreatedTimestamp = BigInteger.valueOf(longTimestamp);
 
         if (!recreatedTimestamp.equals(bigintTimestamp)) {
-          LOG.warn("Downcasting BigInteger into Long results in a change of the original value. Was " + bigintTimestamp + " but is now " + longTimestamp);
+          log.warn("Downcasting BigInteger into Long results in a change of the original value. Was " + bigintTimestamp + " but is now " + longTimestamp);
         }
 
         return longTimestamp;
@@ -533,7 +543,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
           return bigdecimalTimestamp.longValueExact();
         } catch (ArithmeticException e) {
           long convertedLong = bigdecimalTimestamp.longValue();
-          LOG.warn("Downcasting BigDecimal into Long results in a loss of information. Was " + bigdecimalTimestamp + " but is now " + convertedLong);
+          log.warn("Downcasting BigDecimal into Long results in a loss of information. Was " + bigdecimalTimestamp + " but is now " + convertedLong);
           return convertedLong;
         }
       case DataType.BYTEARRAY:
@@ -542,11 +552,11 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
           return Long.parseLong(bytes.toString());
         } catch (NumberFormatException e) {
           final String msg = "Could not cast bytes into long: " + bytes.toString();
-          LOG.error(msg);
+          log.error(msg);
           throw new IOException(msg, e);
         }
       default:
-        LOG.error("Could not convert " + o + " of class " + o.getClass() + " into long.");
+        log.error("Could not convert " + o + " of class " + o.getClass() + " into long.");
         throw new IOException("Could not convert " + o.getClass() + " into long");
 
     }
@@ -556,7 +566,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     byte[] bytes = objToBytes(o, type);
 
     if (null == bytes) {
-      LOG.warn("Creating empty text from null value");
+      log.warn("Creating empty text from null value");
       return new Text();
     }
 
