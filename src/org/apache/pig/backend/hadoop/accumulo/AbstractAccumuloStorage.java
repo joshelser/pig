@@ -44,14 +44,12 @@ import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.util.Pair;
 import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.Job;
@@ -402,7 +400,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
    */
   protected void loadDependentJars(Configuration conf) throws IOException {
     // Thank you, HBase.
-    TableMapReduceUtil.addDependencyJars(conf, 
+    Utils.addDependencyJars(conf, 
         org.apache.accumulo.trace.instrument.Tracer.class,
         org.apache.accumulo.core.client.Instance.class,
         org.apache.accumulo.fate.Fate.class,
