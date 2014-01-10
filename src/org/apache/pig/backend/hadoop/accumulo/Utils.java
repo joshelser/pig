@@ -57,6 +57,8 @@ public class Utils {
     Set<String> jars = new HashSet<String>();
     // Add jars that are already in the tmpjars variable
     jars.addAll(conf.getStringCollection("tmpjars"));
+    
+    log.info("Using filesystem: " + localFs.getUri());
 
     // add jars as we find them to a map of contents jar name so that we can avoid
     // creating new jars for classes that have already been packaged.
@@ -80,6 +82,10 @@ public class Utils {
     }
     if (jars.isEmpty())
       return;
+    
+    for (String jar : jars) {
+      log.info("Adding jar: " + jar);
+    }
 
     conf.set("tmpjars", StringUtils.arrayToString(jars.toArray(new String[jars.size()])));
   }
