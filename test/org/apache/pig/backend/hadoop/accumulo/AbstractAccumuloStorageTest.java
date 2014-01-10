@@ -180,8 +180,12 @@ public class AbstractAccumuloStorageTest {
     return "accumulo://table1?instance=myinstance&user=root&password=secret&zookeepers=127.0.0.1:2181&write_buffer_size_bytes=1234000&write_threads=7&write_latency_ms=30000";
   }
   
-  public AbstractAccumuloStorage getAbstractAccumuloStorage() throws ParseException {
-    AbstractAccumuloStorage s = new AbstractAccumuloStorage("") {
+  public static AbstractAccumuloStorage getAbstractAccumuloStorage() throws ParseException {
+    return getAbstractAccumuloStorage("");
+  }
+  
+  public static AbstractAccumuloStorage getAbstractAccumuloStorage(String args) throws ParseException {
+    return new AbstractAccumuloStorage(args) {
       
       @Override
       public Collection<Mutation> getMutations(Tuple tuple) {
@@ -193,7 +197,6 @@ public class AbstractAccumuloStorageTest {
         return null;
       }
     };
-    return s;
   }
   
   @Test

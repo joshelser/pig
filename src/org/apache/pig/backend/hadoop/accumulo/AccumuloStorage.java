@@ -33,9 +33,7 @@ import org.apache.accumulo.core.data.Mutation;
 import org.apache.accumulo.core.data.PartialKey;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.iterators.user.WholeRowIterator;
-import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.ParseException;
-import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.log4j.Logger;
@@ -73,12 +71,9 @@ import com.google.common.collect.Lists;
  */
 public class AccumuloStorage extends AbstractAccumuloStorage {
   private static final Logger log = Logger.getLogger(AccumuloStorage.class);
-  private static final String COMMA = ",", COLON = ":", EMPTY = "";
+  private static final String COLON = ":", EMPTY = "";
   
   public static final String METADATA_SUFFIX = "_metadata";
-  
-  protected final List<String> columnSpecs;
-  protected final boolean aggregateColfams;
   
   // Not sure if AccumuloStorage instances need to be thread-safe or not
   final Text _cfHolder = new Text(), _cqHolder = new Text();
@@ -102,20 +97,7 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
   public AccumuloStorage(String args) throws ParseException {
     super(args);
     
-    CommandLine cli = getCommandLine();
     this.caster = new Utf8StorageConverter();
-    
-    this.aggregateColfams = cli.hasOption(AccumuloStorageOptions.AGGREGATE_COLUMNS_OPTION.getOpt());
-    
-    String writeColumns = cli.getOptionValue(AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt(), "");
-    // TODO It would be nice to have some other means than enumerating
-    // the CF for every column in the Tuples we're going process
-    if (!StringUtils.isBlank(writeColumns)) {
-      String[] columnArray = StringUtils.split(writeColumns, COMMA);
-      columnSpecs = Lists.newArrayList(columnArray);
-    } else {
-      columnSpecs = Collections.emptyList();
-    }
   }
   
   @Override

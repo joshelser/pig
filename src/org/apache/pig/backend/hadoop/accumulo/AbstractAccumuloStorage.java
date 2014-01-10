@@ -71,6 +71,8 @@ import org.apache.pig.impl.util.ObjectSerializer;
 import org.apache.pig.impl.util.UDFContext;
 import org.joda.time.DateTime;
 
+import com.google.common.collect.Lists;
+
 /**
  * A LoadStoreFunc for retrieving data from and storing data to Accumulo
  * 
@@ -94,25 +96,28 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
   private RecordReader<Key,Value> reader;
   private RecordWriter<Text,Mutation> writer;
 
-  String inst;
-  String zookeepers;
-  String user;
-  String password;
-  String table;
-  Text tableName;
-  Authorizations authorizations;
-  List<Pair<Text,Text>> cfCqPairs = new LinkedList<Pair<Text,Text>>();
+  protected String inst;
+  protected String zookeepers;
+  protected String user;
+  protected String password;
+  protected String table;
+  protected Text tableName;
+  protected Authorizations authorizations;
+  protected List<Pair<Text,Text>> cfCqPairs = new LinkedList<Pair<Text,Text>>();
 
-  String start = null;
-  String end = null;
+  protected String start = null;
+  protected String end = null;
 
-  int maxWriteThreads = 10;
-  long maxMutationBufferSize = 10 * 1000 * 1000;
-  int maxLatency = 10 * 1000;
+  protected int maxWriteThreads = 10;
+  protected long maxMutationBufferSize = 10 * 1000 * 1000;
+  protected int maxLatency = 10 * 1000;
 
   protected LoadStoreCaster caster;
   protected ResourceSchema schema;
   protected String contextSignature = null;
+  
+  protected List<String> columnSpecs;
+  protected boolean aggregateColfams;
 
   public AbstractAccumuloStorage(String args) throws ParseException {
     storageOptions = new AccumuloStorageOptions();
@@ -150,6 +155,18 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     
     if (cli.hasOption(AccumuloStorageOptions.MUTATION_BUFFER_SIZE_OPTION.getOpt())) {
       this.maxMutationBufferSize = opts.getLong(cli, AccumuloStorageOptions.MUTATION_BUFFER_SIZE_OPTION);
+    }
+    
+    this.aggregateColfams = cli.hasOption(AccumuloStorageOptions.AGGREGATE_COLUMNS_OPTION.getOpt());
+    
+    String writeColumns = cli.getOptionValue(AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt(), "");
+    // TODO It would be nice to have some other means than enumerating
+    // the CF for every column in the Tuples we're going process
+    if (!StringUtils.isBlank(writeColumns)) {
+      String[] columnArray = StringUtils.split(writeColumns, COMMA);
+      columnSpecs = Lists.newArrayList(columnArray);
+    } else {
+      columnSpecs = Collections.emptyList();
     }
   }
   
@@ -346,6 +363,12 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     return writer;
   }
 
+  /**
+   * Extract elements from the Configuration whose keys match the given prefix
+   * @param conf
+   * @param prefix
+   * @return
+   */
   protected Map<String,String> getEntries(Configuration conf, String prefix) {
     Map<String,String> entries = new HashMap<String,String>();
 
