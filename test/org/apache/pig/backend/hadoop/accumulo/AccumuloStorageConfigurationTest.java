@@ -16,6 +16,7 @@
  */
 package org.apache.pig.backend.hadoop.accumulo;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -34,7 +35,7 @@ public class AccumuloStorageConfigurationTest {
   protected AccumuloStorage storage;
   
   @Before
-  public void setup() throws ParseException {
+  public void setup() throws ParseException, IOException {
     storage = new AccumuloStorage();
     
     original = new Configuration();

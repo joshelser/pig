@@ -63,10 +63,13 @@ import org.apache.pig.ResourceSchema.ResourceFieldSchema;
 import org.apache.pig.StoreFuncInterface;
 import org.apache.pig.backend.executionengine.ExecException;
 import org.apache.pig.backend.hadoop.executionengine.mapReduceLayer.PigSplit;
+import org.apache.pig.backend.hadoop.hbase.HBaseBinaryConverter;
+import org.apache.pig.builtin.Utf8StorageConverter;
 import org.apache.pig.data.DataBag;
 import org.apache.pig.data.DataByteArray;
 import org.apache.pig.data.DataType;
 import org.apache.pig.data.Tuple;
+import org.apache.pig.impl.PigContext;
 import org.apache.pig.impl.util.ObjectSerializer;
 import org.apache.pig.impl.util.UDFContext;
 import org.joda.time.DateTime;
@@ -89,7 +92,11 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
 
   private static final String INPUT_PREFIX = AccumuloInputFormat.class.getSimpleName();
   private static final String OUTPUT_PREFIX = AccumuloOutputFormat.class.getSimpleName();
-  
+
+  private final static String STRING_CASTER = "UTF8StorageConverter";
+  private final static String BYTE_CASTER = "AccumuloBinaryConverter";
+  private final static String CASTER_PROPERTY = "pig.accumulo.caster";
+
   protected final AccumuloStorageOptions storageOptions;
   protected final CommandLine commandLine;
 
@@ -115,50 +122,51 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
   protected LoadStoreCaster caster;
   protected ResourceSchema schema;
   protected String contextSignature = null;
-  
+
   protected List<String> columnSpecs;
   protected boolean aggregateColfams;
 
-  public AbstractAccumuloStorage(String args) throws ParseException {
+  public AbstractAccumuloStorage(String args) throws ParseException, IOException {
     storageOptions = new AccumuloStorageOptions();
-    
+
     commandLine = storageOptions.getCommandLine(args);
-    
+
     extractArgs(commandLine, storageOptions);
   }
-  
+
   /**
    * Extract arguments passed into the constructor to avoid the URI
+   * 
    * @param cli
    * @param opts
    */
-  protected void extractArgs(CommandLine cli, AccumuloStorageOptions opts) {
+  protected void extractArgs(CommandLine cli, AccumuloStorageOptions opts) throws IOException {
     String fetchColumns = cli.getOptionValue(AccumuloStorageOptions.FETCH_COLUMNS_OPTION.getOpt(), "");
     if (!StringUtils.isBlank(fetchColumns)) {
       setFetchColumns(fetchColumns);
     }
-    
+
     if (opts.hasAuthorizations(cli)) {
       authorizations = opts.getAuthorizations(cli);
     }
-    
+
     this.start = cli.getOptionValue(AccumuloStorageOptions.START_ROW_OPTION.getOpt(), null);
     this.end = cli.getOptionValue(AccumuloStorageOptions.END_ROW_OPTION.getOpt(), null);
-    
+
     if (cli.hasOption(AccumuloStorageOptions.MAX_LATENCY_OPTION.getOpt())) {
       this.maxLatency = opts.getInt(cli, AccumuloStorageOptions.MAX_LATENCY_OPTION);
     }
-    
+
     if (cli.hasOption(AccumuloStorageOptions.WRITE_THREADS_OPTION.getOpt())) {
       this.maxWriteThreads = opts.getInt(cli, AccumuloStorageOptions.WRITE_THREADS_OPTION);
     }
-    
+
     if (cli.hasOption(AccumuloStorageOptions.MUTATION_BUFFER_SIZE_OPTION.getOpt())) {
       this.maxMutationBufferSize = opts.getLong(cli, AccumuloStorageOptions.MUTATION_BUFFER_SIZE_OPTION);
     }
-    
+
     this.aggregateColfams = cli.hasOption(AccumuloStorageOptions.AGGREGATE_COLUMNS_OPTION.getOpt());
-    
+
     String writeColumns = cli.getOptionValue(AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt(), "");
     // TODO It would be nice to have some other means than enumerating
     // the CF for every column in the Tuples we're going process
@@ -168,8 +176,32 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     } else {
       columnSpecs = Collections.emptyList();
     }
+
+    Properties clientSystemProps = UDFContext.getUDFContext().getClientSystemProps();
+    String defaultCaster = STRING_CASTER;
+    if (null != clientSystemProps) {
+      defaultCaster = clientSystemProps.getProperty(CASTER_PROPERTY, STRING_CASTER); 
+    }
+    
+    String casterOption = cli.getOptionValue("caster", defaultCaster);
+    if (STRING_CASTER.equalsIgnoreCase(casterOption)) {
+      caster = new Utf8StorageConverter();
+    } else if (BYTE_CASTER.equalsIgnoreCase(casterOption)) {
+      caster = new HBaseBinaryConverter();
+    } else {
+      try {
+        caster = (LoadStoreCaster) PigContext.instantiateFuncFromSpec(casterOption);
+      } catch (ClassCastException e) {
+        log.error("Configured caster does not implement LoadCaster interface.");
+        throw new IOException(e);
+      } catch (RuntimeException e) {
+        log.error("Configured caster class not found.", e);
+        throw new IOException(e);
+      }
+    }
+    log.debug("Using caster " + caster.getClass());
   }
-  
+
   protected CommandLine getCommandLine() {
     return commandLine;
   }
@@ -177,14 +209,14 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
   protected Map<String,String> getInputFormatEntries(Configuration conf) {
     return getEntries(conf, INPUT_PREFIX);
   }
-  
+
   protected Map<String,String> getOutputFormatEntries(Configuration conf) {
     return getEntries(conf, OUTPUT_PREFIX);
   }
-  
+
   /**
-   * Removes the given values from the configuration, accounting for changes in the Configuration
-   * API given the version of Hadoop being used.
+   * Removes the given values from the configuration, accounting for changes in the Configuration API given the version of Hadoop being used.
+   * 
    * @param conf
    * @param entriesToUnset
    */
@@ -197,7 +229,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     } catch (SecurityException e) {
       configurationHasUnset = false;
     }
-    
+
     // Only Hadoop >=1.2.0 and >=0.23 actually contains the method Configuration#unset
     if (configurationHasUnset) {
       simpleUnset(conf, entriesToUnset);
@@ -206,16 +238,17 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
       clearUnset(conf, entriesToUnset);
     }
   }
-  
+
   /**
    * Unsets elements in the Configuration using the unset method
+   * 
    * @param conf
    * @param entriesToUnset
    */
   protected void simpleUnset(Configuration conf, Map<String,String> entriesToUnset) {
     try {
       Method unset = conf.getClass().getMethod("unset", String.class);
-      
+
       for (String key : entriesToUnset.keySet()) {
         unset.invoke(conf, key);
       }
@@ -233,10 +266,10 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
       throw new RuntimeException(e);
     }
   }
-  
+
   /**
-   * Replaces the given entries in the configuration by clearing the Configuration
-   * and re-adding the elements that aren't in the Map of entries to unset
+   * Replaces the given entries in the configuration by clearing the Configuration and re-adding the elements that aren't in the Map of entries to unset
+   * 
    * @param conf
    * @param entriesToUnset
    */
@@ -244,10 +277,10 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     // Gets a copy of the entries
     Iterator<Entry<String,String>> originalEntries = conf.iterator();
     conf.clear();
-    
+
     while (originalEntries.hasNext()) {
       Entry<String,String> originalEntry = originalEntries.next();
-      
+
       // Only re-set() the pairs that aren't in our collection of keys to unset
       if (!entriesToUnset.containsKey(originalEntry.getKey())) {
         conf.set(originalEntry.getKey(), originalEntry.getValue());
@@ -344,7 +377,9 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
 
   /**
    * Parses a comma-separated list of colon-delimited pairs which correspond to column family and column qualifier
-   * @param columns A comma-separated of colon-delimited column-family:column qualifier pairs.
+   * 
+   * @param columns
+   *          A comma-separated of colon-delimited column-family:column qualifier pairs.
    */
   protected void setFetchColumns(String columns) {
     for (String cfCq : columns.split(COMMA)) {
@@ -358,13 +393,14 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
       }
     }
   }
-  
+
   protected RecordWriter<Text,Mutation> getWriter() {
     return writer;
   }
 
   /**
    * Extract elements from the Configuration whose keys match the given prefix
+   * 
    * @param conf
    * @param prefix
    * @return
@@ -385,7 +421,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
   @Override
   public void setLocation(String location, Job job) throws IOException {
     setLocationFromUri(location);
-    
+
     loadDependentJars(job.getConfiguration());
 
     Map<String,String> entries = getInputFormatEntries(job.getConfiguration());
@@ -416,23 +452,19 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
   }
 
   /**
-   * Ensure that Accumulo's dependent jars are added to the Configuration
-   * to alleviate the need for clients to REGISTER dependency jars. 
-   * @param job The Mapreduce Job object
+   * Ensure that Accumulo's dependent jars are added to the Configuration to alleviate the need for clients to REGISTER dependency jars.
+   * 
+   * @param job
+   *          The Mapreduce Job object
    * @throws IOException
    */
   protected void loadDependentJars(Configuration conf) throws IOException {
     // Thank you, HBase.
-    Utils.addDependencyJars(conf, 
-        org.apache.accumulo.trace.instrument.Tracer.class,
-        org.apache.accumulo.core.client.Instance.class,
-        org.apache.accumulo.fate.Fate.class,
-        org.apache.accumulo.server.tabletserver.TabletServer.class,
-        org.apache.zookeeper.ZooKeeper.class,
-        org.apache.thrift.TServiceClient.class
-        );
+    Utils.addDependencyJars(conf, org.apache.accumulo.trace.instrument.Tracer.class, org.apache.accumulo.core.client.Instance.class,
+        org.apache.accumulo.fate.Fate.class, org.apache.accumulo.server.tabletserver.TabletServer.class, org.apache.zookeeper.ZooKeeper.class,
+        org.apache.thrift.TServiceClient.class);
   }
-  
+
   /**
    * Method to allow specific implementations to add more elements to the Job for reading data from Accumulo.
    * 
@@ -478,7 +510,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     setLocationFromUri(location);
 
     loadDependentJars(job.getConfiguration());
-    
+
     Map<String,String> entries = getOutputFormatEntries(job.getConfiguration());
     unsetEntriesFromConfiguration(job.getConfiguration(), entries);
 
@@ -538,6 +570,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     schema = s;
     getUDFProperties().setProperty(contextSignature + "_schema", ObjectSerializer.serialize(schema));
   }
+  
 
   protected Text tupleToText(Tuple tuple, int i, ResourceFieldSchema[] fieldSchemas) throws IOException {
     Object o = tuple.get(i);
@@ -568,67 +601,6 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
 
   }
 
-  protected long objToLong(Tuple tuple, int i, ResourceFieldSchema[] fieldSchemas) throws IOException {
-    Object o = tuple.get(i);
-    byte type = schemaToType(o, i, fieldSchemas);
-
-    switch (type) {
-      case DataType.LONG:
-        return (Long) o;
-      case DataType.CHARARRAY:
-        String timestampString = (String) o;
-        try {
-          return Long.parseLong(timestampString);
-        } catch (NumberFormatException e) {
-          final String msg = "Could not cast chararray into long: " + timestampString;
-          log.error(msg);
-          throw new IOException(msg, e);
-        }
-      case DataType.DOUBLE:
-        Double doubleTimestamp = (Double) o;
-        return doubleTimestamp.longValue();
-      case DataType.FLOAT:
-        Float floatTimestamp = (Float) o;
-        return floatTimestamp.longValue();
-      case DataType.INTEGER:
-        Integer intTimestamp = (Integer) o;
-        return intTimestamp.longValue();
-      case DataType.BIGINTEGER:
-        BigInteger bigintTimestamp = (BigInteger) o;
-        long longTimestamp = bigintTimestamp.longValue();
-
-        BigInteger recreatedTimestamp = BigInteger.valueOf(longTimestamp);
-
-        if (!recreatedTimestamp.equals(bigintTimestamp)) {
-          log.warn("Downcasting BigInteger into Long results in a change of the original value. Was " + bigintTimestamp + " but is now " + longTimestamp);
-        }
-
-        return longTimestamp;
-      case DataType.BIGDECIMAL:
-        BigDecimal bigdecimalTimestamp = (BigDecimal) o;
-        try {
-          return bigdecimalTimestamp.longValueExact();
-        } catch (ArithmeticException e) {
-          long convertedLong = bigdecimalTimestamp.longValue();
-          log.warn("Downcasting BigDecimal into Long results in a loss of information. Was " + bigdecimalTimestamp + " but is now " + convertedLong);
-          return convertedLong;
-        }
-      case DataType.BYTEARRAY:
-        DataByteArray bytes = (DataByteArray) o;
-        try {
-          return Long.parseLong(bytes.toString());
-        } catch (NumberFormatException e) {
-          final String msg = "Could not cast bytes into long: " + bytes.toString();
-          log.error(msg);
-          throw new IOException(msg, e);
-        }
-      default:
-        log.error("Could not convert " + o + " of class " + o.getClass() + " into long.");
-        throw new IOException("Could not convert " + o.getClass() + " into long");
-
-    }
-  }
-
   protected Text objToText(Object o, byte type) throws IOException {
     byte[] bytes = objToBytes(o, type);
 
@@ -642,45 +614,28 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
 
   @SuppressWarnings("unchecked")
   protected byte[] objToBytes(Object o, byte type) throws IOException {
-    if (o == null)
-      return null;
-    switch (type) {
-      case DataType.BYTEARRAY:
-        return ((DataByteArray) o).get();
-      case DataType.BAG:
-        return caster.toBytes((DataBag) o);
-      case DataType.CHARARRAY:
-        return caster.toBytes((String) o);
-      case DataType.DOUBLE:
-        return caster.toBytes((Double) o);
-      case DataType.FLOAT:
-        return caster.toBytes((Float) o);
-      case DataType.INTEGER:
-        return caster.toBytes((Integer) o);
-      case DataType.LONG:
-        return caster.toBytes((Long) o);
-      case DataType.BIGINTEGER:
-        return caster.toBytes((BigInteger) o);
-      case DataType.BIGDECIMAL:
-        return caster.toBytes((BigDecimal) o);
-      case DataType.BOOLEAN:
-        return caster.toBytes((Boolean) o);
-      case DataType.DATETIME:
-        return caster.toBytes((DateTime) o);
+      if (o == null) return null;
+      switch (type) {
+      case DataType.BYTEARRAY: return ((DataByteArray) o).get();
+      case DataType.BAG: return caster.toBytes((DataBag) o);
+      case DataType.CHARARRAY: return caster.toBytes((String) o);
+      case DataType.DOUBLE: return caster.toBytes((Double) o);
+      case DataType.FLOAT: return caster.toBytes((Float) o);
+      case DataType.INTEGER: return caster.toBytes((Integer) o);
+      case DataType.LONG: return caster.toBytes((Long) o);
+      case DataType.BIGINTEGER: return caster.toBytes((BigInteger) o);
+      case DataType.BIGDECIMAL: return caster.toBytes((BigDecimal) o);
+      case DataType.BOOLEAN: return caster.toBytes((Boolean) o);
+      case DataType.DATETIME: return caster.toBytes((DateTime) o);
 
-        // The type conversion here is unchecked.
-        // Relying on DataType.findType to do the right thing.
-      case DataType.MAP:
-        return caster.toBytes((Map<String,Object>) o);
+      // The type conversion here is unchecked.
+      // Relying on DataType.findType to do the right thing.
+      case DataType.MAP: return caster.toBytes((Map<String, Object>) o);
 
-      case DataType.NULL:
-        return null;
-      case DataType.TUPLE:
-        return caster.toBytes((Tuple) o);
-      case DataType.ERROR:
-        throw new IOException("Unable to determine type of " + o.getClass());
-      default:
-        throw new IOException("Unable to find a converter for tuple field " + o);
-    }
+      case DataType.NULL: return null;
+      case DataType.TUPLE: return caster.toBytes((Tuple) o);
+      case DataType.ERROR: throw new IOException("Unable to determine type of " + o.getClass());
+      default: throw new IOException("Unable to find a converter for tuple field " + o);
+      }
   }
 }

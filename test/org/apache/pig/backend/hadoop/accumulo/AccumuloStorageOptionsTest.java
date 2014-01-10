@@ -16,6 +16,7 @@
  */
 package org.apache.pig.backend.hadoop.accumulo;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -33,7 +34,7 @@ import org.junit.Test;
 public class AccumuloStorageOptionsTest {
 
   @Test
-  public void testFetchColumns() throws ParseException {
+  public void testFetchColumns() throws ParseException, IOException {
     AbstractAccumuloStorage storage = AbstractAccumuloStorageTest.getAbstractAccumuloStorage("--fetch-columns cf1,cf2:cq2");
     
     List<Pair<Text,Text>> pairs = new LinkedList<Pair<Text,Text>>();
@@ -44,7 +45,7 @@ public class AccumuloStorageOptionsTest {
   }
   
   @Test
-  public void testWriteColumns() throws ParseException {
+  public void testWriteColumns() throws ParseException, IOException {
     AbstractAccumuloStorage storage = AbstractAccumuloStorageTest.getAbstractAccumuloStorage("--write-columns foo,bar,baz,foo:bar,foo:baz");
     
     List<String> columnNames = Arrays.asList("foo", "bar", "baz", "foo:bar", "foo:baz");
@@ -53,14 +54,14 @@ public class AccumuloStorageOptionsTest {
   }
   
   @Test
-  public void testAggregateColumnFamilies() throws ParseException {
+  public void testAggregateColumnFamilies() throws ParseException, IOException {
     AbstractAccumuloStorage storage = AbstractAccumuloStorageTest.getAbstractAccumuloStorage("--aggregate-colfams");
     
     Assert.assertTrue(storage.aggregateColfams);
   }
   
   @Test
-  public void testAuths() throws ParseException {
+  public void testAuths() throws ParseException, IOException {
     AbstractAccumuloStorage storage = AbstractAccumuloStorageTest.getAbstractAccumuloStorage("--auths auth1,auth2");
     
     Authorizations auths = new Authorizations("auth1,auth2");
@@ -69,7 +70,7 @@ public class AccumuloStorageOptionsTest {
   }
   
   @Test
-  public void testStartEndRows() throws ParseException {
+  public void testStartEndRows() throws ParseException, IOException {
     AbstractAccumuloStorage storage = AbstractAccumuloStorageTest.getAbstractAccumuloStorage("--start begin --end finish");
         
     Assert.assertEquals("begin", storage.start);
@@ -77,7 +78,7 @@ public class AccumuloStorageOptionsTest {
   }
   
   @Test
-  public void testBatchWriterOptions() throws ParseException {
+  public void testBatchWriterOptions() throws ParseException, IOException {
     long buffSize = 1024*50;
     int writeThreads = 8, maxLatency = 30 * 1000;
     

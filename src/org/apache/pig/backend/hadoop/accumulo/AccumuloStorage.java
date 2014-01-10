@@ -82,7 +82,7 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
    * Creates an AccumuloStorage which writes all values in a {@link Tuple} with an empty column family
    * and doesn't group column families together on read (creates on {@link Map} for all columns)
    */
-  public AccumuloStorage() throws ParseException {
+  public AccumuloStorage() throws ParseException, IOException {
     this(EMPTY);
   }
   
@@ -94,7 +94,7 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
    * @param aggregateColfams 
    *          Should unique column qualifier and value pairs be grouped together by column family when reading data
    */
-  public AccumuloStorage(String args) throws ParseException {
+  public AccumuloStorage(String args) throws ParseException, IOException {
     super(args);
     
     this.caster = new Utf8StorageConverter();

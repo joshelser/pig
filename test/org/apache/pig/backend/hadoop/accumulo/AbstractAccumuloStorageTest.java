@@ -180,11 +180,11 @@ public class AbstractAccumuloStorageTest {
     return "accumulo://table1?instance=myinstance&user=root&password=secret&zookeepers=127.0.0.1:2181&write_buffer_size_bytes=1234000&write_threads=7&write_latency_ms=30000";
   }
   
-  public static AbstractAccumuloStorage getAbstractAccumuloStorage() throws ParseException {
+  public static AbstractAccumuloStorage getAbstractAccumuloStorage() throws ParseException, IOException {
     return getAbstractAccumuloStorage("");
   }
   
-  public static AbstractAccumuloStorage getAbstractAccumuloStorage(String args) throws ParseException {
+  public static AbstractAccumuloStorage getAbstractAccumuloStorage(String args) throws ParseException, IOException {
     return new AbstractAccumuloStorage(args) {
       
       @Override

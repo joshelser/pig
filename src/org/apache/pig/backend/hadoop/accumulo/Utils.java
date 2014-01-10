@@ -42,49 +42,16 @@ import java.util.zip.ZipOutputStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.log4j.Logger;
-import org.apache.pig.data.DataByteArray;
 
 import com.google.common.base.Preconditions;
 
 public class Utils {
   private static final Logger log = Logger.getLogger(Utils.class);
-  
-  public static Text objToText(Object o) {
-    return new Text(objToBytes(o));
-  }
-  
-  public static byte[] objToBytes(Object o) {
-    if (o instanceof String) {
-      String str = (String) o;
-      return str.getBytes();
-    } else if (o instanceof Long) {
-      Long l = (Long) o;
-      return l.toString().getBytes();
-    } else if (o instanceof Integer) {
-      Integer l = (Integer) o;
-      return l.toString().getBytes();
-    } else if (o instanceof Boolean) {
-      Boolean l = (Boolean) o;
-      return l.toString().getBytes();
-    } else if (o instanceof Float) {
-      Float l = (Float) o;
-      return l.toString().getBytes();
-    } else if (o instanceof Double) {
-      Double l = (Double) o;
-      return l.toString().getBytes();
-    }
-    
-    // TODO: handle DataBag, Map<Object, Object>, and Tuple
-    
-    return ((DataByteArray) o).get();
-  }
-  
+
   // Thanks, HBase
-  public static void addDependencyJars(Configuration conf,
-      Class<?>... classes) throws IOException {
+  public static void addDependencyJars(Configuration conf, Class<?>... classes) throws IOException {
 
     FileSystem localFs = FileSystem.getLocal(conf);
     Set<String> jars = new HashSet<String>();
@@ -93,48 +60,46 @@ public class Utils {
 
     // add jars as we find them to a map of contents jar name so that we can avoid
     // creating new jars for classes that have already been packaged.
-    Map<String, String> packagedClasses = new HashMap<String, String>();
+    Map<String,String> packagedClasses = new HashMap<String,String>();
 
     // Add jars containing the specified classes
     for (Class<?> clazz : classes) {
-      if (clazz == null) continue;
+      if (clazz == null)
+        continue;
 
       Path path = findOrCreateJar(clazz, localFs, packagedClasses);
       if (path == null) {
-        log.warn("Could not find jar for class " + clazz +
-                 " in order to ship it to the cluster.");
+        log.warn("Could not find jar for class " + clazz + " in order to ship it to the cluster.");
         continue;
       }
       if (!localFs.exists(path)) {
-        log.warn("Could not validate jar file " + path + " for class "
-                 + clazz);
+        log.warn("Could not validate jar file " + path + " for class " + clazz);
         continue;
       }
       jars.add(path.toString());
     }
-    if (jars.isEmpty()) return;
+    if (jars.isEmpty())
+      return;
 
     conf.set("tmpjars", StringUtils.arrayToString(jars.toArray(new String[jars.size()])));
   }
 
   /**
-   * If org.apache.hadoop.util.JarFinder is available (0.23+ hadoop), finds
-   * the Jar for a class or creates it if it doesn't exist. If the class is in
-   * a directory in the classpath, it creates a Jar on the fly with the
-   * contents of the directory and returns the path to that Jar. If a Jar is
-   * created, it is created in the system temporary directory. Otherwise,
-   * returns an existing jar that contains a class of the same name. Maintains
-   * a mapping from jar contents to the tmp jar created.
-   * @param my_class the class to find.
-   * @param fs the FileSystem with which to qualify the returned path.
-   * @param packagedClasses a map of class name to path.
+   * If org.apache.hadoop.util.JarFinder is available (0.23+ hadoop), finds the Jar for a class or creates it if it doesn't exist. If the class is in a
+   * directory in the classpath, it creates a Jar on the fly with the contents of the directory and returns the path to that Jar. If a Jar is created, it is
+   * created in the system temporary directory. Otherwise, returns an existing jar that contains a class of the same name. Maintains a mapping from jar contents
+   * to the tmp jar created.
+   * 
+   * @param my_class
+   *          the class to find.
+   * @param fs
+   *          the FileSystem with which to qualify the returned path.
+   * @param packagedClasses
+   *          a map of class name to path.
    * @return a jar file that contains the class.
    * @throws IOException
    */
-  @SuppressWarnings("deprecation")
-  private static Path findOrCreateJar(Class<?> my_class, FileSystem fs,
-      Map<String, String> packagedClasses)
-  throws IOException {
+  private static Path findOrCreateJar(Class<?> my_class, FileSystem fs, Map<String,String> packagedClasses) throws IOException {
     // attempt to locate an existing jar for the class.
     String jar = findContainingJar(my_class, packagedClasses);
     if (null == jar || jar.isEmpty()) {
@@ -151,12 +116,14 @@ public class Utils {
   }
 
   /**
-   * Add entries to <code>packagedClasses</code> corresponding to class files
-   * contained in <code>jar</code>.
-   * @param jar The jar who's content to list.
-   * @param packagedClasses map[class -> jar]
+   * Add entries to <code>packagedClasses</code> corresponding to class files contained in <code>jar</code>.
+   * 
+   * @param jar
+   *          The jar who's content to list.
+   * @param packagedClasses
+   *          map[class -> jar]
    */
-  private static void updateMap(String jar, Map<String, String> packagedClasses) throws IOException {
+  private static void updateMap(String jar, Map<String,String> packagedClasses) throws IOException {
     if (null == jar || jar.isEmpty()) {
       return;
     }
@@ -170,21 +137,21 @@ public class Utils {
         }
       }
     } finally {
-      if (null != zip) zip.close();
+      if (null != zip)
+        zip.close();
     }
   }
 
   /**
-   * Find a jar that contains a class of the same name, if any. It will return
-   * a jar file, even if that is not the first thing on the class path that
-   * has a class with the same name. Looks first on the classpath and then in
-   * the <code>packagedClasses</code> map.
-   * @param my_class the class to find.
+   * Find a jar that contains a class of the same name, if any. It will return a jar file, even if that is not the first thing on the class path that has a
+   * class with the same name. Looks first on the classpath and then in the <code>packagedClasses</code> map.
+   * 
+   * @param my_class
+   *          the class to find.
    * @return a jar file that contains the class, or null.
    * @throws IOException
    */
-  private static String findContainingJar(Class<?> my_class, Map<String, String> packagedClasses)
-      throws IOException {
+  private static String findContainingJar(Class<?> my_class, Map<String,String> packagedClasses) throws IOException {
     ClassLoader loader = my_class.getClassLoader();
     String class_file = my_class.getName().replaceAll("\\.", "/") + ".class";
 
@@ -214,10 +181,11 @@ public class Utils {
   }
 
   /**
-   * Invoke 'getJar' on a JarFinder implementation. Useful for some job
-   * configuration contexts (HBASE-8140) and also for testing on MRv2. First
-   * check if we have HADOOP-9426. Lacking that, fall back to the backport.
-   * @param my_class the class to find.
+   * Invoke 'getJar' on a JarFinder implementation. Useful for some job configuration contexts (HBASE-8140) and also for testing on MRv2. First check if we have
+   * HADOOP-9426. Lacking that, fall back to the backport.
+   * 
+   * @param my_class
+   *          the class to find.
    * @return a jar file that contains the class, or null.
    */
   private static String getJar(Class<?> my_class) {
@@ -244,12 +212,13 @@ public class Utils {
 
     return ret;
   }
+
   /**
-   * Returns the full path to the Jar containing the class. It always return a
-   * JAR.
-   *
-   * @param klass class.
-   *
+   * Returns the full path to the Jar containing the class. It always return a JAR.
+   * 
+   * @param klass
+   *          class.
+   * 
    * @return path to the Jar containing the class.
    */
   @SuppressWarnings("rawtypes")
@@ -259,8 +228,7 @@ public class Utils {
     if (loader != null) {
       String class_file = klass.getName().replaceAll("\\.", "/") + ".class";
       try {
-        for (Enumeration itr = loader.getResources(class_file);
-             itr.hasMoreElements(); ) {
+        for (Enumeration itr = loader.getResources(class_file); itr.hasMoreElements();) {
           URL url = (URL) itr.nextElement();
           String path = url.getPath();
           if (path.startsWith("file:")) {
@@ -270,8 +238,7 @@ public class Utils {
           if ("jar".equals(url.getProtocol())) {
             path = URLDecoder.decode(path, "UTF-8");
             return path.replaceAll("!.*$", "");
-          }
-          else if ("file".equals(url.getProtocol())) {
+          } else if ("file".equals(url.getProtocol())) {
             String klassName = klass.getName();
             klassName = klassName.replace(".", "/") + ".class";
             path = path.substring(0, path.length() - klassName.length());
@@ -287,16 +254,14 @@ public class Utils {
             return tempJar.getAbsolutePath();
           }
         }
-      }
-      catch (IOException e) {
+      } catch (IOException e) {
         throw new RuntimeException(e);
       }
     }
     return null;
   }
 
-  private static void copyToZipStream(InputStream is, ZipEntry entry,
-                              ZipOutputStream zos) throws IOException {
+  private static void copyToZipStream(InputStream is, ZipEntry entry, ZipOutputStream zos) throws IOException {
     zos.putNextEntry(entry);
     byte[] arr = new byte[4096];
     int read = is.read(arr);
@@ -308,8 +273,7 @@ public class Utils {
     zos.closeEntry();
   }
 
-  public static void jarDir(File dir, String relativePath, ZipOutputStream zos)
-    throws IOException {
+  public static void jarDir(File dir, String relativePath, ZipOutputStream zos) throws IOException {
     Preconditions.checkNotNull(relativePath, "relativePath");
     Preconditions.checkNotNull(zos, "zos");
 
@@ -330,8 +294,7 @@ public class Utils {
     zos.close();
   }
 
-  private static void zipDir(File dir, String relativePath, ZipOutputStream zos,
-                             boolean start) throws IOException {
+  private static void zipDir(File dir, String relativePath, ZipOutputStream zos, boolean start) throws IOException {
     String[] dirList = dir.list();
     for (String aDirList : dirList) {
       File f = new File(dir, aDirList);
@@ -345,8 +308,7 @@ public class Utils {
           String filePath = f.getPath();
           File file = new File(filePath);
           zipDir(file, relativePath + f.getName() + "/", zos, false);
-        }
-        else {
+        } else {
           String path = relativePath + f.getName();
           if (!path.equals(JarFile.MANIFEST_NAME)) {
             ZipEntry anEntry = new ZipEntry(path);
@@ -364,8 +326,7 @@ public class Utils {
     File jarDir = jarFile.getParentFile();
     if (!jarDir.exists()) {
       if (!jarDir.mkdirs()) {
-        throw new IOException(MessageFormat.format("could not create dir [{0}]",
-                                                   jarDir));
+        throw new IOException(MessageFormat.format("could not create dir [{0}]", jarDir));
       }
     }
     JarOutputStream zos = new JarOutputStream(new FileOutputStream(jarFile));
