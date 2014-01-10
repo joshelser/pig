@@ -29,16 +29,16 @@ import org.apache.commons.lang.StringUtils;
  * 
  */
 public class AccumuloStorageOptions {
-  public static final Option CASTER_OPTION = new Option("-c", "--caster", true, "Implementation of LoadStoreCaster to use"),
-      FETCH_COLUMNS_OPTION = new Option("-fc", "--fetch-columns", true, "Columns to fetch"),
-      WRITE_COLUMNS_OPTION = new Option("-wc", "--write-columns", true, "Column names to use for non-Map data aligned to Tuple offset"),
-      AGGREGATE_COLUMNS_OPTION = new Option("-agg", "--aggregate-colfams", false, "Aggregate column families together on LOAD, default: false"),
-      AUTHORIZATIONS_OPTION = new Option("-auths", "--authorizations", true, "Comma-separated list of authorizations to use"),
-      START_ROW_OPTION = new Option("-s", "--start", true, "The row to begin reading from, inclusive"),
-      END_ROW_OPTION = new Option("-e", "--end", true, "The row to read until, inclusive"),
-      MUTATION_BUFFER_SIZE_OPTION = new Option("-buff", "--mutation-buffer-size", true, "Number of bytes to buffer when writing data"),
-      WRITE_THREADS_OPTION = new Option("-wt", "--write-threads", true, "Number of threads to use when writing data"),
-      MAX_LATENCY_OPTION = new Option("-ml", "--max-latency", true, "Maximum latency in seconds before Mutations are flushed to Accumulo");
+  public static final Option CASTER_OPTION = new Option("c", "caster", true, "Implementation of LoadStoreCaster to use"),
+      FETCH_COLUMNS_OPTION = new Option("fc", "fetch-columns", true, "Columns to fetch"),
+      WRITE_COLUMNS_OPTION = new Option("wc", "write-columns", true, "Column names to use for non-Map data aligned to Tuple offset"),
+      AGGREGATE_COLUMNS_OPTION = new Option("agg", "aggregate-colfams", false, "Aggregate column families together on LOAD, default: false"),
+      AUTHORIZATIONS_OPTION = new Option("auths", "authorizations", true, "Comma-separated list of authorizations to use"),
+      START_ROW_OPTION = new Option("s", "start", true, "The row to begin reading from, inclusive"),
+      END_ROW_OPTION = new Option("e", "end", true, "The row to read until, inclusive"),
+      MUTATION_BUFFER_SIZE_OPTION = new Option("buff", "mutation-buffer-size", true, "Number of bytes to buffer when writing data"),
+      WRITE_THREADS_OPTION = new Option("wt", "write-threads", true, "Number of threads to use when writing data"),
+      MAX_LATENCY_OPTION = new Option("ml", "max-latency", true, "Maximum latency in seconds before Mutations are flushed to Accumulo");
     
   
   private Options options;

@@ -116,10 +116,6 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
     } else {
       columnSpecs = Collections.emptyList();
     }
-    
-
-    
-    
   }
   
   @Override

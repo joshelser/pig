@@ -66,7 +66,7 @@ public class AccumuloStorageTest {
   
   @Test
   public void test2TupleWithColumn() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("col");
+    AccumuloStorage storage = new AccumuloStorage("-" + AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt() + " col");
     
     Tuple t = TupleFactory.getInstance().newTuple(2);
     t.set(0, "row");
@@ -91,7 +91,7 @@ public class AccumuloStorageTest {
   
   @Test
   public void test2TupleWithColumnQual() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage(AccumuloStorageOptions.FETCH_COLUMNS_OPTION.getOpt() + " col:qual");
+    AccumuloStorage storage = new AccumuloStorage("-" + AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt() + " col:qual");
     
     Tuple t = TupleFactory.getInstance().newTuple(2);
     t.set(0, "row");
@@ -116,7 +116,7 @@ public class AccumuloStorageTest {
   
   @Test
   public void test2TupleWithMixedColumns() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("col1,col1:qual,col2:qual,col2");
+    AccumuloStorage storage = new AccumuloStorage("-" + AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt() + " col1,col1:qual,col2:qual,col2");
     
     Tuple t = TupleFactory.getInstance().newTuple(5);
     t.set(0, "row");
@@ -159,7 +159,7 @@ public class AccumuloStorageTest {
   
   @Test
   public void testIgnoredExtraColumns() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("col");
+    AccumuloStorage storage = new AccumuloStorage("-" + AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt() + " col");
     
     Tuple t = TupleFactory.getInstance().newTuple(3);
     t.set(0, "row");
@@ -185,7 +185,7 @@ public class AccumuloStorageTest {
   
   @Test
   public void testNonIgnoredExtraAsMap() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("col");
+    AccumuloStorage storage = new AccumuloStorage("-" + AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt() + " col");
     
     Map<String,Object> map = Maps.newHashMap();
     
@@ -231,7 +231,7 @@ public class AccumuloStorageTest {
   
   @Test
   public void testMapWithColFam() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("col");
+    AccumuloStorage storage = new AccumuloStorage("-" + AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt() + " col");
     
     Map<String,Object> map = Maps.newHashMap();
     
@@ -264,7 +264,7 @@ public class AccumuloStorageTest {
     for (ColumnUpdate update : colUpdates) {
       Entry<String,String> key = Maps.immutableEntry(new String(update.getColumnFamily()), new String(update.getColumnQualifier()));
       String value = new String(update.getValue());
-      Assert.assertTrue(expectations.containsKey(key));
+      Assert.assertTrue("Did not find expected key: " + key, expectations.containsKey(key));
       
       String actual = expectations.remove(key);
       Assert.assertEquals(value, actual);
@@ -275,7 +275,7 @@ public class AccumuloStorageTest {
   
   @Test
   public void testMapWithColFamColQualPrefix() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("col:qual_");
+    AccumuloStorage storage = new AccumuloStorage("-" + AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt() + " col:qual_");
     
     Map<String,Object> map = Maps.newHashMap();
     
@@ -376,7 +376,7 @@ public class AccumuloStorageTest {
   
   @Test
   public void testMultipleColumnsAggregateColfams() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage(AccumuloStorageOptions.AGGREGATE_COLUMNS_OPTION.getOpt());
+    AccumuloStorage storage = new AccumuloStorage("-" + AccumuloStorageOptions.AGGREGATE_COLUMNS_OPTION.getOpt());
     
     List<Key> keys = Lists.newArrayList();
     List<Value> values = Lists.newArrayList();

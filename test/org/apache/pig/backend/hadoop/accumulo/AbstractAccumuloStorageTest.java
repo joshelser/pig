@@ -207,6 +207,8 @@ public class AbstractAccumuloStorageTest {
     Job expected = getDefaultExpectedLoadJob();
     Configuration expectedConf = expected.getConfiguration();
     
+    s.loadDependentJars(expectedConf);
+    
     assertConfigurationsEqual(expectedConf, actualConf);
   }
   
@@ -220,6 +222,8 @@ public class AbstractAccumuloStorageTest {
     
     Job expected = getDefaultExpectedStoreJob();
     Configuration expectedConf = expected.getConfiguration();
+    
+    s.loadDependentJars(expectedConf);
     
     assertConfigurationsEqual(expectedConf, actualConf);
   }

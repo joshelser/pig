@@ -365,7 +365,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
   public void setLocation(String location, Job job) throws IOException {
     setLocationFromUri(location);
     
-    loadDependentJars(job);
+    loadDependentJars(job.getConfiguration());
 
     Map<String,String> entries = getInputFormatEntries(job.getConfiguration());
     unsetEntriesFromConfiguration(job.getConfiguration(), entries);
@@ -400,9 +400,9 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
    * @param job The Mapreduce Job object
    * @throws IOException
    */
-  protected void loadDependentJars(Job job) throws IOException {
+  protected void loadDependentJars(Configuration conf) throws IOException {
     // Thank you, HBase.
-    TableMapReduceUtil.addDependencyJars(job.getConfiguration(), 
+    TableMapReduceUtil.addDependencyJars(conf, 
         org.apache.accumulo.trace.instrument.Tracer.class,
         org.apache.accumulo.core.client.Instance.class,
         org.apache.accumulo.fate.Fate.class,
@@ -456,7 +456,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
   public void setStoreLocation(String location, Job job) throws IOException {
     setLocationFromUri(location);
 
-    loadDependentJars(job);
+    loadDependentJars(job.getConfiguration());
     
     Map<String,String> entries = getOutputFormatEntries(job.getConfiguration());
     unsetEntriesFromConfiguration(job.getConfiguration(), entries);
