@@ -190,7 +190,6 @@
       at the moment.
     -->
     <property name="hbaseversion" value="94" />
-    <property name="accumuloversion" value="15" />
 
     <property name="src.shims.dir" value="${basedir}/shims/src/hadoop${hadoopversion}" />
     <property name="src.shims.test.dir" value="${basedir}/shims/test/hadoop${hadoopversion}" />
