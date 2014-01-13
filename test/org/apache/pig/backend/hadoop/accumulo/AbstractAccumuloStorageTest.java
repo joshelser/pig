@@ -184,8 +184,12 @@ public class AbstractAccumuloStorageTest {
     return getAbstractAccumuloStorage("");
   }
   
-  public static AbstractAccumuloStorage getAbstractAccumuloStorage(String args) throws ParseException, IOException {
-    return new AbstractAccumuloStorage(args) {
+  public static AbstractAccumuloStorage getAbstractAccumuloStorage(String columns) throws ParseException, IOException {
+    return getAbstractAccumuloStorage(columns, "");
+  }
+  
+  public static AbstractAccumuloStorage getAbstractAccumuloStorage(String columns, String args) throws ParseException, IOException {
+    return new AbstractAccumuloStorage(columns, args) {
       
       @Override
       public Collection<Mutation> getMutations(Tuple tuple) {

@@ -42,7 +42,7 @@ import com.google.common.collect.Maps;
 public class AccumuloStorageTest {
   
   @Test
-  public void test1Tuple() throws IOException, ParseException {
+  public void testWrite1Tuple() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage();
     
     Tuple t = TupleFactory.getInstance().newTuple(1);
@@ -54,7 +54,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void test2TupleNoColumn() throws IOException, ParseException {
+  public void testWrite2TupleNoColumn() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage();
     
     Tuple t = TupleFactory.getInstance().newTuple(2);
@@ -65,8 +65,8 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void test2TupleWithColumn() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("-" + AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt() + " col");
+  public void testWrite2TupleWithColumn() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("col");
     
     Tuple t = TupleFactory.getInstance().newTuple(2);
     t.set(0, "row");
@@ -90,8 +90,8 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void test2TupleWithColumnQual() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("-" + AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt() + " col:qual");
+  public void testWrite2TupleWithColumnQual() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("col:qual");
     
     Tuple t = TupleFactory.getInstance().newTuple(2);
     t.set(0, "row");
@@ -115,8 +115,8 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void test2TupleWithMixedColumns() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("-" + AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt() + " col1,col1:qual,col2:qual,col2");
+  public void testWrite2TupleWithMixedColumns() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("col1,col1:qual,col2:qual,col2");
     
     Tuple t = TupleFactory.getInstance().newTuple(5);
     t.set(0, "row");
@@ -158,8 +158,8 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testIgnoredExtraColumns() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("-" + AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt() + " col");
+  public void testWriteIgnoredExtraColumns() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("col");
     
     Tuple t = TupleFactory.getInstance().newTuple(3);
     t.set(0, "row");
@@ -184,8 +184,8 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testNonIgnoredExtraAsMap() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("-" + AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt() + " col");
+  public void testWriteNonIgnoredExtraAsMap() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("col");
     
     Map<String,Object> map = Maps.newHashMap();
     
@@ -230,8 +230,8 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testMapWithColFam() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("-" + AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt() + " col");
+  public void testWriteMapWithColFam() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("col");
     
     Map<String,Object> map = Maps.newHashMap();
     
@@ -274,8 +274,8 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testMapWithColFamColQualPrefix() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("-" + AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt() + " col:qual_");
+  public void testWriteMapWithColFamColQualPrefix() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("col:qual_");
     
     Map<String,Object> map = Maps.newHashMap();
     
@@ -318,7 +318,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testSingleKey() throws IOException, ParseException {
+  public void testReadSingleKey() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage();
     
     List<Key> keys = Lists.newArrayList();
@@ -343,7 +343,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testSingleColumn() throws IOException, ParseException {
+  public void testReadSingleColumn() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage();
     
     List<Key> keys = Lists.newArrayList();
@@ -375,8 +375,8 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testMultipleColumnsAggregateColfams() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("-" + AccumuloStorageOptions.AGGREGATE_COLUMNS_OPTION.getOpt());
+  public void testReadMultipleColumnsAggregateColfams() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("*");
     
     List<Key> keys = Lists.newArrayList();
     List<Value> values = Lists.newArrayList();
@@ -400,7 +400,89 @@ public class AccumuloStorageTest {
     
     Tuple t = storage.getTuple(k, v);
     
-    Assert.assertEquals(4, t.size());
+    Assert.assertEquals(2, t.size());
+    
+    Assert.assertEquals("1", t.get(0).toString());
+    
+    InternalMap map = new InternalMap();
+    map.put("col1:cq1", new DataByteArray("value1"));
+    map.put("col1:cq2", new DataByteArray("value2"));
+    map.put("col1:cq3", new DataByteArray("value3"));
+    map.put("col2:cq1", new DataByteArray("value1"));
+    map.put("col3:cq1", new DataByteArray("value1"));
+    map.put("col3:cq2", new DataByteArray("value2"));
+    
+    Assert.assertEquals(map, t.get(1));
+  }
+  
+  @Test
+  public void testReadMultipleColumnsAggregateColfams() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("");
+    
+    List<Key> keys = Lists.newArrayList();
+    List<Value> values = Lists.newArrayList();
+    
+    keys.add(new Key("1", "col1", "cq1"));
+    keys.add(new Key("1", "col1", "cq2"));
+    keys.add(new Key("1", "col1", "cq3"));
+    keys.add(new Key("1", "col2", "cq1"));
+    keys.add(new Key("1", "col3", "cq1"));
+    keys.add(new Key("1", "col3", "cq2"));
+    
+    values.add(new Value("value1".getBytes()));
+    values.add(new Value("value2".getBytes()));
+    values.add(new Value("value3".getBytes()));
+    values.add(new Value("value1".getBytes()));
+    values.add(new Value("value1".getBytes()));
+    values.add(new Value("value2".getBytes()));
+    
+    Key k = new Key("1");
+    Value v = WholeRowIterator.encodeRow(keys, values);
+    
+    Tuple t = storage.getTuple(k, v);
+    
+    Assert.assertEquals(2, t.size());
+    
+    Assert.assertEquals("1", t.get(0).toString());
+    
+    InternalMap map = new InternalMap();
+    map.put("col1:cq1", new DataByteArray("value1"));
+    map.put("col1:cq2", new DataByteArray("value2"));
+    map.put("col1:cq3", new DataByteArray("value3"));
+    map.put("col2:cq1", new DataByteArray("value1"));
+    map.put("col3:cq1", new DataByteArray("value1"));
+    map.put("col3:cq2", new DataByteArray("value2"));
+    
+    Assert.assertEquals(map, t.get(1));
+  }
+  
+  @Test
+  public void testReadMultipleColumnsNoAggregateColquals() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("*");
+    
+    List<Key> keys = Lists.newArrayList();
+    List<Value> values = Lists.newArrayList();
+    
+    keys.add(new Key("1", "col1", "cq1"));
+    keys.add(new Key("1", "col1", "cq2"));
+    keys.add(new Key("1", "col1", "cq3"));
+    keys.add(new Key("1", "col2", "cq1"));
+    keys.add(new Key("1", "col3", "cq1"));
+    keys.add(new Key("1", "col3", "cq2"));
+    
+    values.add(new Value("value1".getBytes()));
+    values.add(new Value("value2".getBytes()));
+    values.add(new Value("value3".getBytes()));
+    values.add(new Value("value1".getBytes()));
+    values.add(new Value("value1".getBytes()));
+    values.add(new Value("value2".getBytes()));
+    
+    Key k = new Key("1");
+    Value v = WholeRowIterator.encodeRow(keys, values);
+    
+    Tuple t = storage.getTuple(k, v);
+    
+    Assert.assertEquals(7, t.size());
     
     Assert.assertEquals("1", t.get(0).toString());
     
@@ -424,7 +506,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testMultipleColumnsNoColfamAggregate() throws IOException, ParseException {
+  public void testReadMultipleColumnsNoColfamAggregate() throws IOException, ParseException {
     // Aggregate defaults to off
     AccumuloStorage storage = new AccumuloStorage();
     
@@ -463,21 +545,6 @@ public class AccumuloStorageTest {
     map.put("col3:cq2", new DataByteArray("value2"));
     
     Assert.assertEquals(map, t.get(1));
-  }
-  
-  @Test
-  public void testNoExtraCharsOnAggregate() throws Exception {
-    List<Entry<Key,Value>> input = Arrays.asList(Maps.immutableEntry(new Key("1", "cf1"), new Value("foo".getBytes())),
-        Maps.immutableEntry(new Key("1", "cf2"), new Value("bar".getBytes())));
-    
-    AccumuloStorage storage = new AccumuloStorage();
-    
-    Map<String,Object> aggregate = storage.aggregate(input);
-    
-    Assert.assertTrue(aggregate.containsKey("cf1"));
-    Assert.assertTrue(aggregate.containsKey("cf2"));
-    Assert.assertEquals("foo", aggregate.get("cf1").toString());
-    Assert.assertEquals("bar", aggregate.get("cf2").toString());
   }
   
 }

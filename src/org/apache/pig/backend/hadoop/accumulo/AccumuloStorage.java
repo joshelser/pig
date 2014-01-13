@@ -162,14 +162,15 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
       currentKey.getColumnQualifier(cqHolder);
       
       // Colfam prefixes take priority over colqual prefixes
-      if (colfamPrefixes.contains(cfHolder)) {
+      Text colfamPrefix = findPrefixMatch(cfHolder, colfamPrefixes);
+      if (null != colfamPrefix) {
         aggregateMap = new HashMap<String,DataByteArray>();
         
         aggregateMap.put(cfHolder + COLON + cqHolder, 
             new DataByteArray(currentValue.get()));
         
         // Aggregate as long as we match the given prefix
-        Text colfamToAggregate = new Text(cfHolder);
+        Text colfamToAggregate = new Text(colfamPrefix);
         while (iter.hasNext()) {
           currentEntry = iter.peek();
           currentKey = currentEntry.getKey();
@@ -182,10 +183,13 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
             iter.next();
             aggregateMap.put(cfHolder + COLON + cqHolder, 
                 new DataByteArray(currentValue.get()));
+          } else {
+            break;
           }
         }
         
         tupleEntries.add(aggregateMap);
+        continue;
       } else if (colqualPrefixes.containsKey(cfHolder)) {
         aggregateMap = new HashMap<String,DataByteArray>();
         
@@ -207,6 +211,8 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
             if (colfamToAggregate.equals(cfHolder) && prefixMatch(cqHolder, desiredColqualPrefix)) {
               iter.next();
               aggregateMap.put(cfHolder + COLON + cqHolder, new DataByteArray(currentValue.get()));
+            } else {
+              break;
             }
           }
           
@@ -233,6 +239,16 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
     return tuple;
   }
   
+  protected Text findPrefixMatch(Text value, Collection<Text> potentialMatches) {
+    for (Text potentialMatch : potentialMatches) {
+      if (prefixMatch(value, potentialMatch)) {
+        return potentialMatch;
+      }
+    }
+    
+    return null;
+  }
+  
   /**
    * Returns true if the value starts with prefix
    * @param value
@@ -255,26 +271,6 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
     }
     
     return true;
-  }
-  
-  protected Map<String,Object> aggregate(List<Entry<Key,Value>> columns) {
-    final Map<String,Object> map = new HashMap<String,Object>();
-    final StringBuilder sb = new StringBuilder(128);
-    
-    for (Entry<Key,Value> column : columns) {
-      String cf = column.getKey().getColumnFamily().toString(), cq = column.getKey().getColumnQualifier().toString();
-      
-      sb.append(cf);
-      if (!cq.isEmpty()) {
-        sb.append(COLON).append(cq);
-      }
-      
-      map.put(sb.toString(), new DataByteArray(column.getValue().get()));
-      
-      sb.setLength(0);
-    }
-    
-    return map;
   }
   
   @Override

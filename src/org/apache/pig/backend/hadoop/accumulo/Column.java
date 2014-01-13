@@ -32,8 +32,8 @@ public class Column {
   }
   
   private final Type columnType;
-  private final String columnFamily;
-  private final String columnQualifier;
+  private String columnFamily;
+  private String columnQualifier;
   
   public Column(String col) {
     Preconditions.checkNotNull(col);
@@ -61,8 +61,12 @@ public class Column {
       // TODO Handle colf*:colq* ?
       if (columnFamily.endsWith(AbstractAccumuloStorage.ASTERISK)) {
         columnType = Type.COLFAM_PREFIX;
-      } else if (columnQualifier.isEmpty() || columnQualifier.endsWith(AbstractAccumuloStorage.ASTERISK)) {
+        columnFamily = columnFamily.substring(0, columnFamily.length() - 1);
+      } else if (columnQualifier.isEmpty()) {
         columnType = Type.COLQUAL_PREFIX;
+      } else if (columnQualifier.endsWith(AbstractAccumuloStorage.ASTERISK)) {
+        columnType = Type.COLQUAL_PREFIX;
+        columnQualifier = columnQualifier.substring(0, columnQualifier.length() - 1);
       } else {
         columnType = Type.LITERAL;
       }
