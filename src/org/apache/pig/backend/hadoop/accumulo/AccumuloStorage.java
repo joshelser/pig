@@ -17,6 +17,7 @@
 package org.apache.pig.backend.hadoop.accumulo;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -25,12 +26,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 import org.apache.accumulo.core.client.IteratorSetting;
 import org.apache.accumulo.core.client.mapreduce.AccumuloInputFormat;
 import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Mutation;
-import org.apache.accumulo.core.data.PartialKey;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.iterators.user.WholeRowIterator;
 import org.apache.commons.cli.ParseException;
@@ -39,13 +41,14 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.log4j.Logger;
 import org.apache.pig.ResourceSchema.ResourceFieldSchema;
 import org.apache.pig.backend.executionengine.ExecException;
-import org.apache.pig.builtin.Utf8StorageConverter;
 import org.apache.pig.data.DataByteArray;
 import org.apache.pig.data.DataType;
 import org.apache.pig.data.Tuple;
 import org.apache.pig.data.TupleFactory;
 
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
+import com.google.common.collect.PeekingIterator;
 
 /**
  * Basic PigStorage implementation that uses Accumulo as the backing store.
@@ -79,11 +82,21 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
   final Text _cfHolder = new Text(), _cqHolder = new Text();
   
   /**
+   * Contains column families prefixes (without asterisk) that were fetched
+   */
+  protected TreeSet<Text> colfamPrefixes = new TreeSet<Text>();
+  
+  /**
+   * Contains column families to column qualifier prefixes (without asterisk) that were fetched
+   */
+  protected TreeMap<Text,Text> colqualPrefixes = new TreeMap<Text,Text>();
+  
+  /**
    * Creates an AccumuloStorage which writes all values in a {@link Tuple} with an empty column family
    * and doesn't group column families together on read (creates on {@link Map} for all columns)
    */
   public AccumuloStorage() throws ParseException, IOException {
-    this(EMPTY);
+    this(EMPTY, EMPTY);
   }
   
   /**
@@ -94,10 +107,40 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
    * @param aggregateColfams 
    *          Should unique column qualifier and value pairs be grouped together by column family when reading data
    */
-  public AccumuloStorage(String args) throws ParseException, IOException {
-    super(args);
+  public AccumuloStorage(String columns) throws ParseException, IOException {
+    this(columns, EMPTY);
+  }
+  
+  public AccumuloStorage(String columnStr, String args) throws ParseException, IOException {
+    super(columnStr, args);
     
-    this.caster = new Utf8StorageConverter();
+    
+    for (Column col : this.columns) {
+      switch(col.getType()) {
+        case COLFAM_PREFIX:
+          int colfIndex = col.getColumnFamily().indexOf(ASTERISK);
+          
+          // Empty colfam should just match everything
+          if (-1 == colfIndex) {
+            throw new IOException("Did not find asterisk in: " + col.getColumnFamily());
+          } else {
+            colfamPrefixes.add(new Text(col.getColumnFamily().substring(0, colfIndex)));
+          }
+          
+          break;
+        case COLQUAL_PREFIX:
+          int colqIndex = col.getColumnQualifier().indexOf(ASTERISK);
+          
+          if (-1 == colqIndex) {
+            throw new IOException("Did not find asterisk in: "+ col.getColumnQualifier());
+          } else {
+            colqualPrefixes.put(new Text(col.getColumnFamily()), new Text(col.getColumnQualifier().substring(0, colqIndex)));
+          }
+          break;
+        default:
+          break;
+      }
+    }
   }
   
   @Override
@@ -105,36 +148,77 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
     SortedMap<Key,Value> rowKVs = WholeRowIterator.decodeRow(key, value);
     
     List<Object> tupleEntries = Lists.newLinkedList();
-    Iterator<Entry<Key,Value>> iter = rowKVs.entrySet().iterator();
-    List<Entry<Key,Value>> aggregate = Lists.newLinkedList();
-    Entry<Key,Value> currentEntry = null;
+    PeekingIterator<Entry<Key,Value>> iter = Iterators.peekingIterator(rowKVs.entrySet().iterator());
+    Entry<Key,Value> currentEntry;
+    Map<String,DataByteArray> aggregateMap;
+    final Text cfHolder = new Text();
+    final Text cqHolder = new Text();
     
     while (iter.hasNext()) {
-      if (null == currentEntry) {
-        currentEntry = iter.next();
-        aggregate.add(currentEntry);
-      } else {
-        Entry<Key,Value> nextEntry = iter.next();
+      currentEntry = iter.next();
+      Key currentKey = currentEntry.getKey();
+      Value currentValue = currentEntry.getValue();
+      currentKey.getColumnFamily(cfHolder);
+      currentKey.getColumnQualifier(cqHolder);
+      
+      // Colfam prefixes take priority over colqual prefixes
+      if (colfamPrefixes.contains(cfHolder)) {
+        aggregateMap = new HashMap<String,DataByteArray>();
         
-        // If we're not aggregating colfams together, or we are and we have the same colfam
-        if (!aggregateColfams || currentEntry.getKey().equals(nextEntry.getKey(), PartialKey.ROW_COLFAM)) {
-          // Aggregate this entry into the map
-          aggregate.add(nextEntry);
-        } else {
-          currentEntry = nextEntry;
+        aggregateMap.put(cfHolder + COLON + cqHolder, 
+            new DataByteArray(currentValue.get()));
+        
+        // Aggregate as long as we match the given prefix
+        Text colfamToAggregate = new Text(cfHolder);
+        while (iter.hasNext()) {
+          currentEntry = iter.peek();
+          currentKey = currentEntry.getKey();
+          currentValue = currentEntry.getValue();
+          currentKey.getColumnFamily(cfHolder);
+          currentKey.getColumnQualifier(cqHolder);
           
-          // Flush and start again
-          Map<String,Object> map = aggregate(aggregate);
-          tupleEntries.add(map);
-          
-          aggregate = Lists.newLinkedList();
-          aggregate.add(currentEntry);
+          if (prefixMatch(cfHolder, colfamToAggregate)) {
+            // Consume the key/value
+            iter.next();
+            aggregateMap.put(cfHolder + COLON + cqHolder, 
+                new DataByteArray(currentValue.get()));
+          }
         }
+        
+        tupleEntries.add(aggregateMap);
+      } else if (colqualPrefixes.containsKey(cfHolder)) {
+        aggregateMap = new HashMap<String,DataByteArray>();
+        
+        // We're aggregating some portion of the colqual in this colfam
+        Text desiredColqualPrefix = colqualPrefixes.get(cfHolder);
+        
+        if (prefixMatch(cqHolder, desiredColqualPrefix)) {
+          aggregateMap = new HashMap<String,DataByteArray>();
+          aggregateMap.put(cfHolder + COLON + cqHolder, new DataByteArray(currentValue.get()));
+          
+          Text colfamToAggregate = new Text(cfHolder);
+          while (iter.hasNext()) {
+            currentEntry = iter.peek();
+            currentKey = currentEntry.getKey();
+            currentValue = currentEntry.getValue();
+            currentKey.getColumnFamily(cfHolder);
+            currentKey.getColumnQualifier(cqHolder);
+            
+            if (colfamToAggregate.equals(cfHolder) && prefixMatch(cqHolder, desiredColqualPrefix)) {
+              iter.next();
+              aggregateMap.put(cfHolder + COLON + cqHolder, new DataByteArray(currentValue.get()));
+            }
+          }
+          
+          tupleEntries.add(aggregateMap);
+        } else {
+          // When we don't, we had to match this colqual because it was specifically chosen
+          tupleEntries.add(new DataByteArray(currentValue.get()));
+        }
+      } else {
+        // It's a literal, just add it
+        tupleEntries.add(new DataByteArray(currentValue.get()));
       }
-    }
-    
-    if (!aggregate.isEmpty()) {
-      tupleEntries.add(aggregate(aggregate));
     }
     
     // and wrap it in a tuple
@@ -147,6 +231,30 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
     }
     
     return tuple;
+  }
+  
+  /**
+   * Returns true if the value starts with prefix
+   * @param value
+   * @param prefix
+   * @return
+   */
+  protected boolean prefixMatch(Text value, Text prefix) {
+    // Can't match a longer prefix
+    if (value.getLength() < prefix.getLength()) {
+      return false;
+    }
+    
+    ByteBuffer valueBuf = ByteBuffer.wrap(value.getBytes(), 0, value.getLength()),
+        prefixBuf = ByteBuffer.wrap(prefix.getBytes(), 0, prefix.getLength());
+    
+    for (int i = 0; i < prefixBuf.limit(); i++) {
+      if (valueBuf.get(i) != prefixBuf.get(i)) {
+        return false;
+      }
+    }
+    
+    return true;
   }
   
   protected Map<String,Object> aggregate(List<Entry<Key,Value>> columns) {
@@ -171,7 +279,7 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
   
   @Override
   protected void configureInputFormat(Job job) {
-    AccumuloInputFormat.addIterator(job, new IteratorSetting(50, WholeRowIterator.class));
+    AccumuloInputFormat.addIterator(job, new IteratorSetting(100, WholeRowIterator.class));
   }
   
   @Override
@@ -187,53 +295,52 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
     
     Mutation mutation = new Mutation(objectToText(tupleIter.next(), (null == fieldSchemas) ? null : fieldSchemas[0]));    
     
-    int columnOffset = 0;
     int tupleOffset = 1;
-    while (tupleIter.hasNext()) {
+    Iterator<Column> columnIter = columns.iterator();
+    while (tupleIter.hasNext() && columnIter.hasNext()) {
       Object o = tupleIter.next();
-      String family = null;
-      
-      // Figure out if the user provided a specific columnfamily to use.
-      if (columnOffset < columnSpecs.size()) {
-        family = columnSpecs.get(columnOffset);
-      }
+      Column column = columnIter.next();
       
       // Grab the type for this field
       final byte type = schemaToType(o, (null == fieldSchemas) ? null : fieldSchemas[tupleOffset]);
-      
-      // If we have a Map, we want to treat every Entry as a column in this record
-      // placing said column in the column family unless this instance of AccumuloStorage
-      // was provided a specific columnFamily to use, in which case the entry's column is
-      // in the column qualifier.
-      if (DataType.MAP == type) {
-        @SuppressWarnings("unchecked")
-        Map<String,Object> map = (Map<String,Object>) o;
-        
-        for (Entry<String,Object> entry : map.entrySet()) {
-          Object entryObject = entry.getValue();
+
+      switch (column.getType()) {
+        case LITERAL:
+          byte[] bytes = objToBytes(o, type);
           
-          // Treat a null value in the map as the lack of this column
-          // The input may have come from a structured source where the
-          // column could not have been omitted. We can handle the lack of the column
-          if (null != entryObject) {
-            byte entryType = DataType.findType(entryObject);
-            Value value = new Value(objToBytes(entryObject, entryType));
+          if (null != bytes) {
+            Value value = new Value(bytes);
             
-            addColumn(mutation, family, entry.getKey(), value);
+            // We don't have any column name from non-Maps
+            addColumn(mutation, column.getColumnFamily(), column.getColumnQualifier(), value);
           }
-        }
-      } else {
-        byte[] bytes = objToBytes(o, type);
-        
-        if (null != bytes) {
-          Value value = new Value(bytes);
+          break;
+        case COLFAM_PREFIX:
+        case COLQUAL_PREFIX:
+          @SuppressWarnings("unchecked")
+          Map<String,Object> map = (Map<String,Object>) o;
           
-          // We don't have any column name from non-Maps
-          addColumn(mutation, family, null, value);
-        }
+          for (Entry<String,Object> entry : map.entrySet()) {
+            String key = entry.getKey();
+            Object objValue = entry.getValue();
+            
+            byte valueType = DataType.findType(objValue);
+            byte[] mapValue = objToBytes(objValue, valueType);
+            
+            if (Column.Type.COLFAM_PREFIX == column.getType()) {
+              addColumn(mutation, column.getColumnFamily() + key, null, new Value(mapValue));
+            } else if (Column.Type.COLQUAL_PREFIX == column.getType()) {
+              addColumn(mutation, column.getColumnFamily(), column.getColumnQualifier() + key, new Value(mapValue));
+            } else {
+              throw new IOException("Unknown column type");
+            }
+          }
+          break;
+        default:
+          log.info("Ignoring unhandled column type");
+          continue;
       }
       
-      columnOffset++;
       tupleOffset++;
     }
     
@@ -245,48 +352,24 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
   }
   
   /**
-   * Adds column and value to the given mutation. A columnfamily and optional column qualifier
-   * or column qualifier prefix is pulled from {@link columnDef} with the family and qualifier 
-   * delimiter being a colon. If {@link columnName} is non-null, it will be appended to the qualifier.
-   * 
-   * If both the {@link columnDef} and {@link columnName} are null, nothing is added to the mutation
+   * Adds the given column family, column qualifier and value to the given mutation
    * 
    * @param mutation
-   * @param columnDef
-   * @param columnName
+   * @param colfam
+   * @param colqual
    * @param columnValue
    */
-  protected void addColumn(Mutation mutation, String columnDef, String columnName, Value columnValue) {
-    if (null == columnDef && null == columnName) {
-      // TODO Emit a counter here somehow? org.apache.pig.tools.pigstats.PigStatusReporter
-      log.warn("Was provided no name or definition for column. Ignoring value");
-      return;
-    }
-    
-    if (null != columnDef) {
-      // use the provided columnDef to make a cf (with optional cq prefix)
-      int index = columnDef.indexOf(COLON);
-      if (-1 == index) {
-        _cfHolder.set(columnDef);
-        _cqHolder.clear();
-        
-      } else {
-        byte[] cfBytes = columnDef.getBytes();
-        _cfHolder.set(cfBytes, 0, index);
-        _cqHolder.set(cfBytes, index + 1, cfBytes.length - (index + 1)); 
-      }
+  protected void addColumn(Mutation mutation, String colfam, String colqual, Value columnValue) {
+    if (null != colfam) {
+      _cfHolder.set(colfam);
     } else {
       _cfHolder.clear();
-      _cqHolder.clear();
     }
     
-    // If we have a column name (this came from a Map)
-    // append that name on the cq.
-    if (null != columnName) {
-      byte[] cnBytes = columnName.getBytes();
-      
-      // CQ is either empty or has a prefix from the columnDef
-      _cqHolder.append(cnBytes, 0, cnBytes.length);
+    if (null != colqual) {
+      _cqHolder.set(colqual);
+    } else {
+      _cqHolder.clear();
     }
     
     mutation.put(_cfHolder, _cqHolder, columnValue);

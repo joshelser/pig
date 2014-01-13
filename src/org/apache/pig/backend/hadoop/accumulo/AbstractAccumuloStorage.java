@@ -74,8 +74,6 @@ import org.apache.pig.impl.util.ObjectSerializer;
 import org.apache.pig.impl.util.UDFContext;
 import org.joda.time.DateTime;
 
-import com.google.common.collect.Lists;
-
 /**
  * A LoadStoreFunc for retrieving data from and storing data to Accumulo
  * 
@@ -88,7 +86,8 @@ import com.google.common.collect.Lists;
 public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreFuncInterface {
   private static final Log log = LogFactory.getLog(AbstractAccumuloStorage.class);
 
-  private static final String COLON = ":", COMMA = ",";
+  protected static final char COLON = ':', COMMA = ',';
+  protected static final String ASTERISK = "*";
 
   private static final String INPUT_PREFIX = AccumuloInputFormat.class.getSimpleName();
   private static final String OUTPUT_PREFIX = AccumuloOutputFormat.class.getSimpleName();
@@ -110,28 +109,43 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
   protected String table;
   protected Text tableName;
   protected Authorizations authorizations;
-  protected List<Pair<Text,Text>> cfCqPairs = new LinkedList<Pair<Text,Text>>();
+
+  protected List<Column> columns;
 
   protected String start = null;
   protected String end = null;
 
-  protected int maxWriteThreads = 10;
-  protected long maxMutationBufferSize = 10 * 1000 * 1000;
-  protected int maxLatency = 10 * 1000;
+  // Defaults from BatchWriterConfig
+  protected int maxWriteThreads = 3;
+  protected long maxMutationBufferSize = 50 * 1024 * 1024l;
+  protected long maxLatency = Long.MAX_VALUE;
 
   protected LoadStoreCaster caster;
   protected ResourceSchema schema;
   protected String contextSignature = null;
 
-  protected List<String> columnSpecs;
-  protected boolean aggregateColfams;
-
-  public AbstractAccumuloStorage(String args) throws ParseException, IOException {
+  public AbstractAccumuloStorage(String columns, String args) throws ParseException, IOException {
     storageOptions = new AccumuloStorageOptions();
-
     commandLine = storageOptions.getCommandLine(args);
 
+    // Split out the user provided columns
+    parseColumns(columns);
+
+    // Extract any command line args
     extractArgs(commandLine, storageOptions);
+  }
+
+  /**
+   * Initializes {@link #columnDefs} and splits columns on {@link #COMMA}
+   * 
+   * @param columns
+   *          CSV of columns
+   */
+  private void parseColumns(String columnStr) {
+    columns = new LinkedList<Column>();
+    for (String column : StringUtils.split(StringUtils.strip(columnStr), COMMA)) {
+      columns.add(new Column(column));
+    }
   }
 
   /**
@@ -141,11 +155,6 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
    * @param opts
    */
   protected void extractArgs(CommandLine cli, AccumuloStorageOptions opts) throws IOException {
-    String fetchColumns = cli.getOptionValue(AccumuloStorageOptions.FETCH_COLUMNS_OPTION.getOpt(), "");
-    if (!StringUtils.isBlank(fetchColumns)) {
-      setFetchColumns(fetchColumns);
-    }
-
     if (opts.hasAuthorizations(cli)) {
       authorizations = opts.getAuthorizations(cli);
     }
@@ -165,24 +174,12 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
       this.maxMutationBufferSize = opts.getLong(cli, AccumuloStorageOptions.MUTATION_BUFFER_SIZE_OPTION);
     }
 
-    this.aggregateColfams = cli.hasOption(AccumuloStorageOptions.AGGREGATE_COLUMNS_OPTION.getOpt());
-
-    String writeColumns = cli.getOptionValue(AccumuloStorageOptions.WRITE_COLUMNS_OPTION.getOpt(), "");
-    // TODO It would be nice to have some other means than enumerating
-    // the CF for every column in the Tuples we're going process
-    if (!StringUtils.isBlank(writeColumns)) {
-      String[] columnArray = StringUtils.split(writeColumns, COMMA);
-      columnSpecs = Lists.newArrayList(columnArray);
-    } else {
-      columnSpecs = Collections.emptyList();
-    }
-
     Properties clientSystemProps = UDFContext.getUDFContext().getClientSystemProps();
     String defaultCaster = STRING_CASTER;
     if (null != clientSystemProps) {
-      defaultCaster = clientSystemProps.getProperty(CASTER_PROPERTY, STRING_CASTER); 
+      defaultCaster = clientSystemProps.getProperty(CASTER_PROPERTY, defaultCaster);
     }
-    
+
     String casterOption = cli.getOptionValue("caster", defaultCaster);
     if (STRING_CASTER.equalsIgnoreCase(casterOption)) {
       caster = new Utf8StorageConverter();
@@ -350,7 +347,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
           else if (pair[0].equals("write_threads"))
             maxWriteThreads = Integer.parseInt(pair[1]);
           else if (pair[0].equals("write_latency_ms"))
-            maxLatency = Integer.parseInt(pair[1]);
+            maxLatency = Long.parseLong(pair[1]);
         }
       }
       String[] parts = urlParts[0].split("/+");
@@ -364,7 +361,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
       }
 
       if (!StringUtils.isEmpty(columns)) {
-        setFetchColumns(columns);
+        parseColumns(columns);
       }
 
     } catch (Exception e) {
@@ -372,25 +369,6 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
           "Expected 'accumulo://<table>[?instance=<instanceName>&user=<user>&password=<password>&zookeepers=<zookeepers>&auths=<authorizations>&"
               + "[start=startRow,end=endRow,fetch_columns=[cf1:cq1,cf2:cq2,...],write_buffer_size_bytes=10000000,write_threads=10,write_latency_ms=30000]]': "
               + e.getMessage());
-    }
-  }
-
-  /**
-   * Parses a comma-separated list of colon-delimited pairs which correspond to column family and column qualifier
-   * 
-   * @param columns
-   *          A comma-separated of colon-delimited column-family:column qualifier pairs.
-   */
-  protected void setFetchColumns(String columns) {
-    for (String cfCq : columns.split(COMMA)) {
-      int index = cfCq.indexOf(COLON);
-      if (-1 == index) {
-        cfCqPairs.add(new Pair<Text,Text>(new Text(cfCq), null));
-      } else {
-        final String cf = cfCq.substring(0, index);
-        final String cq = cfCq.substring(index + 1);
-        cfCqPairs.add(new Pair<Text,Text>(new Text(cf), new Text(cq)));
-      }
     }
   }
 
@@ -437,10 +415,35 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     AccumuloInputFormat.setScanAuthorizations(job, authorizations);
     AccumuloInputFormat.setZooKeeperInstance(job, inst, zookeepers);
 
-    if (cfCqPairs.size() > 0) {
-      log.info("columns: " + cfCqPairs);
-      AccumuloInputFormat.fetchColumns(job, cfCqPairs);
+    List<Pair<Text,Text>> inputFormatColumns = new LinkedList<Pair<Text,Text>>();
+    int colfamPrefix = 0;
+    
+    for (Column c : columns) {
+      switch (c.getType()) {
+        case LITERAL:
+          // Pull the colf[:colq] individually
+          inputFormatColumns.add(makePair(c.getColumnFamily(), c.getColumnQualifier()));
+          break;
+        case COLFAM_PREFIX:
+          // Some colfams
+          colfamPrefix++;
+          break;
+        case COLQUAL_PREFIX:
+          // Some colquals in a given colfam
+          inputFormatColumns.add(makePair(c.getColumnFamily(), null));
+          break;
+        default:
+          log.info("Ignoring unhandled column type");
+          break;
+      }
     }
+    
+    // If we have colfam prefixes, we have to pull all columns and filter on client-side
+    // TODO Create an iterator that lets us push-down *all* of the filter logic
+    if (0 == colfamPrefix && !inputFormatColumns.isEmpty()) {
+      AccumuloInputFormat.fetchColumns(job, inputFormatColumns);
+    }
+    
 
     Collection<Range> ranges = Collections.singleton(new Range(start, end));
 
@@ -449,6 +452,10 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     AccumuloInputFormat.setRanges(job, ranges);
 
     configureInputFormat(job);
+  }
+
+  protected Pair<Text,Text> makePair(String first, String second) {
+    return new Pair<Text,Text>((null == first) ? null : new Text(first), (null == second) ? null : new Text(second));
   }
 
   /**
@@ -570,7 +577,6 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     schema = s;
     getUDFProperties().setProperty(contextSignature + "_schema", ObjectSerializer.serialize(schema));
   }
-  
 
   protected Text tupleToText(Tuple tuple, int i, ResourceFieldSchema[] fieldSchemas) throws IOException {
     Object o = tuple.get(i);
@@ -614,28 +620,45 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
 
   @SuppressWarnings("unchecked")
   protected byte[] objToBytes(Object o, byte type) throws IOException {
-      if (o == null) return null;
-      switch (type) {
-      case DataType.BYTEARRAY: return ((DataByteArray) o).get();
-      case DataType.BAG: return caster.toBytes((DataBag) o);
-      case DataType.CHARARRAY: return caster.toBytes((String) o);
-      case DataType.DOUBLE: return caster.toBytes((Double) o);
-      case DataType.FLOAT: return caster.toBytes((Float) o);
-      case DataType.INTEGER: return caster.toBytes((Integer) o);
-      case DataType.LONG: return caster.toBytes((Long) o);
-      case DataType.BIGINTEGER: return caster.toBytes((BigInteger) o);
-      case DataType.BIGDECIMAL: return caster.toBytes((BigDecimal) o);
-      case DataType.BOOLEAN: return caster.toBytes((Boolean) o);
-      case DataType.DATETIME: return caster.toBytes((DateTime) o);
+    if (o == null)
+      return null;
+    switch (type) {
+      case DataType.BYTEARRAY:
+        return ((DataByteArray) o).get();
+      case DataType.BAG:
+        return caster.toBytes((DataBag) o);
+      case DataType.CHARARRAY:
+        return caster.toBytes((String) o);
+      case DataType.DOUBLE:
+        return caster.toBytes((Double) o);
+      case DataType.FLOAT:
+        return caster.toBytes((Float) o);
+      case DataType.INTEGER:
+        return caster.toBytes((Integer) o);
+      case DataType.LONG:
+        return caster.toBytes((Long) o);
+      case DataType.BIGINTEGER:
+        return caster.toBytes((BigInteger) o);
+      case DataType.BIGDECIMAL:
+        return caster.toBytes((BigDecimal) o);
+      case DataType.BOOLEAN:
+        return caster.toBytes((Boolean) o);
+      case DataType.DATETIME:
+        return caster.toBytes((DateTime) o);
 
-      // The type conversion here is unchecked.
-      // Relying on DataType.findType to do the right thing.
-      case DataType.MAP: return caster.toBytes((Map<String, Object>) o);
+        // The type conversion here is unchecked.
+        // Relying on DataType.findType to do the right thing.
+      case DataType.MAP:
+        return caster.toBytes((Map<String,Object>) o);
 
-      case DataType.NULL: return null;
-      case DataType.TUPLE: return caster.toBytes((Tuple) o);
-      case DataType.ERROR: throw new IOException("Unable to determine type of " + o.getClass());
-      default: throw new IOException("Unable to find a converter for tuple field " + o);
-      }
+      case DataType.NULL:
+        return null;
+      case DataType.TUPLE:
+        return caster.toBytes((Tuple) o);
+      case DataType.ERROR:
+        throw new IOException("Unable to determine type of " + o.getClass());
+      default:
+        throw new IOException("Unable to find a converter for tuple field " + o);
+    }
   }
 }

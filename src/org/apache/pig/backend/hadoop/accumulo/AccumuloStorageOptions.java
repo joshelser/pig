@@ -30,9 +30,6 @@ import org.apache.commons.lang.StringUtils;
  */
 public class AccumuloStorageOptions {
   public static final Option CASTER_OPTION = new Option("c", "caster", true, "Implementation of LoadStoreCaster to use typically UTF8StringConverter or AccumuloBinaryConverter"),
-      FETCH_COLUMNS_OPTION = new Option("fc", "fetch-columns", true, "Columns to fetch"),
-      WRITE_COLUMNS_OPTION = new Option("wc", "write-columns", true, "Column names to use for non-Map data aligned to Tuple offset"),
-      AGGREGATE_COLUMNS_OPTION = new Option("agg", "aggregate-colfams", false, "Aggregate column families together on LOAD, default: false"),
       AUTHORIZATIONS_OPTION = new Option("auths", "authorizations", true, "Comma-separated list of authorizations to use"),
       START_ROW_OPTION = new Option("s", "start", true, "The row to begin reading from, inclusive"),
       END_ROW_OPTION = new Option("e", "end", true, "The row to read until, inclusive"),
@@ -49,9 +46,6 @@ public class AccumuloStorageOptions {
     options = new Options();
     
     options.addOption(CASTER_OPTION);
-    options.addOption(FETCH_COLUMNS_OPTION);
-    options.addOption(WRITE_COLUMNS_OPTION);
-    options.addOption(AGGREGATE_COLUMNS_OPTION);
     options.addOption(AUTHORIZATIONS_OPTION);
     options.addOption(START_ROW_OPTION);
     options.addOption(END_ROW_OPTION);
@@ -61,10 +55,8 @@ public class AccumuloStorageOptions {
   }
   
   public String getHelpMessage() {
-    return "[(-c|--caster) LoadStoreCasterImpl] [-fc|--fetch-columns cf1,cf2:cq2] [(-wc|--write-columns) foo,bar,baz]"
-        + "[(-agg|--aggregate-colfams)] [(-auths|--authorizations auth1,auth2,auth3] [(-s|--start) startrow]" 
-        + "[(-e|--end) endrow] [(-buff|--mutation-buffer-size) bytes] [(-wt|--write-threads) threads]"
-        + "[(-ml|--max-latency) seconds]";
+    return "[(-c|--caster) LoadStoreCasterImpl] [(-auths|--authorizations auth1,auth2,auth3] [(-s|--start) startrow]"
+        + " [(-e|--end) endrow] [(-buff|--mutation-buffer-size) bytes] [(-wt|--write-threads) threads] [(-ml|--max-latency) seconds]";
   }
   
   public CommandLine getCommandLine(String args) throws ParseException {
