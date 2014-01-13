@@ -21,7 +21,9 @@ import org.apache.commons.lang.StringUtils;
 import com.google.common.base.Preconditions;
 
 /**
+ * Extracts necessary information from a user provide column "specification": colf[[*]:[colq[*]]]
  * 
+ * Removes any trailing asterisk on colfam or colqual, and appropriately sets the {#link Column.Type}
  */
 public class Column {
 
@@ -46,6 +48,7 @@ public class Column {
       columnQualifier = null;
       
       if (columnFamily.endsWith(AbstractAccumuloStorage.ASTERISK)) {
+        columnFamily = columnFamily.substring(0, columnFamily.length() - 1);
         columnType = Type.COLFAM_PREFIX;
       } else {
         columnType = Type.LITERAL;

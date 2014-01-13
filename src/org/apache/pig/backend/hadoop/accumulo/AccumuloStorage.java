@@ -118,24 +118,10 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
     for (Column col : this.columns) {
       switch(col.getType()) {
         case COLFAM_PREFIX:
-          int colfIndex = col.getColumnFamily().indexOf(ASTERISK);
-          
-          // Empty colfam should just match everything
-          if (-1 == colfIndex) {
-            throw new IOException("Did not find asterisk in: " + col.getColumnFamily());
-          } else {
-            colfamPrefixes.add(new Text(col.getColumnFamily().substring(0, colfIndex)));
-          }
-          
+          colfamPrefixes.add(new Text(col.getColumnFamily()));
           break;
         case COLQUAL_PREFIX:
-          int colqIndex = col.getColumnQualifier().indexOf(ASTERISK);
-          
-          if (-1 == colqIndex) {
-            throw new IOException("Did not find asterisk in: "+ col.getColumnQualifier());
-          } else {
-            colqualPrefixes.put(new Text(col.getColumnFamily()), new Text(col.getColumnQualifier().substring(0, colqIndex)));
-          }
+          colqualPrefixes.put(new Text(col.getColumnFamily()), new Text(col.getColumnQualifier()));
           break;
         default:
           break;
@@ -279,7 +265,7 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
   }
   
   @Override
-  public Collection<Mutation> getMutations(Tuple tuple) throws ExecException, IOException {
+  protected Collection<Mutation> getMutations(Tuple tuple) throws ExecException, IOException {
     final ResourceFieldSchema[] fieldSchemas = (schema == null) ? null : schema.getFields();
       
     Iterator<Object> tupleIter = tuple.iterator();

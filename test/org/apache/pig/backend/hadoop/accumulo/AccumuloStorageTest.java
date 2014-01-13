@@ -29,7 +29,9 @@ import org.apache.accumulo.core.data.Mutation;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.iterators.user.WholeRowIterator;
 import org.apache.commons.cli.ParseException;
+import org.apache.pig.LoadStoreCaster;
 import org.apache.pig.data.DataByteArray;
+import org.apache.pig.data.DataType;
 import org.apache.pig.data.InternalMap;
 import org.apache.pig.data.Tuple;
 import org.apache.pig.data.TupleFactory;
@@ -184,8 +186,79 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testWriteNonIgnoredExtraAsMap() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("col");
+  public void testWriteIgnoredExtraMap() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("col1");
+    
+    Map<String,Object> map = Maps.newHashMap();
+    
+    map.put("mapcol1", "mapval1");
+    map.put("mapcol2", "mapval2");
+    map.put("mapcol3", "mapval3");
+    map.put("mapcol4", "mapval4");
+    
+    Tuple t = TupleFactory.getInstance().newTuple(3);
+    t.set(0, "row");
+    t.set(1, "value1");
+    t.set(2, map);
+    
+    Collection<Mutation> mutations = storage.getMutations(t);
+    
+    Assert.assertEquals(1, mutations.size());
+    
+    Mutation m = mutations.iterator().next();
+    
+    Assert.assertTrue("Rows not equal", Arrays.equals(m.getRow(), ((String) t.get(0)).getBytes()));
+    
+    List<ColumnUpdate> colUpdates = m.getUpdates();
+    Assert.assertEquals(1, colUpdates.size());
+    
+    ColumnUpdate update = colUpdates.get(0);
+    Assert.assertEquals("col1", new String(update.getColumnFamily()));
+    Assert.assertEquals("", new String(update.getColumnQualifier()));
+    Assert.assertEquals("value1", new String(update.getValue()));
+  }
+  
+  @Test
+  public void testWriteMultipleColumnsWithNonExpandedMap() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("col1,col2");
+    
+    Map<String,Object> map = Maps.newHashMap();
+    
+    map.put("mapcol1", "mapval1");
+    map.put("mapcol2", "mapval2");
+    map.put("mapcol3", "mapval3");
+    map.put("mapcol4", "mapval4");
+    
+    Tuple t = TupleFactory.getInstance().newTuple(3);
+    t.set(0, "row");
+    t.set(1, "value1");
+    t.set(2, map);
+    
+    Collection<Mutation> mutations = storage.getMutations(t);
+    
+    Assert.assertEquals(1, mutations.size());
+    
+    Mutation m = mutations.iterator().next();
+    
+    Assert.assertTrue("Rows not equal", Arrays.equals(m.getRow(), ((String) t.get(0)).getBytes()));
+    
+    List<ColumnUpdate> colUpdates = m.getUpdates();
+    Assert.assertEquals(2, colUpdates.size());
+    
+    ColumnUpdate update = colUpdates.get(0);
+    Assert.assertEquals("col1", new String(update.getColumnFamily()));
+    Assert.assertEquals("", new String(update.getColumnQualifier()));
+    Assert.assertEquals("value1", new String(update.getValue()));
+    
+    update = colUpdates.get(1);
+    Assert.assertEquals("col2", new String(update.getColumnFamily()));
+    Assert.assertEquals("", new String(update.getColumnQualifier()));
+    Assert.assertArrayEquals(storage.objToBytes(map, DataType.MAP), update.getValue());
+  }
+  
+  @Test
+  public void testWriteMultipleColumnsWithExpandedMap() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("col1,col2:");
     
     Map<String,Object> map = Maps.newHashMap();
     
@@ -210,17 +283,22 @@ public class AccumuloStorageTest {
     List<ColumnUpdate> colUpdates = m.getUpdates();
     Assert.assertEquals(5, colUpdates.size());
     
-    Map<Entry<String,String>,String> expectations = Maps.newHashMap();
-    expectations.put(Maps.immutableEntry("col", ""), "value1");
-    expectations.put(Maps.immutableEntry("", "mapcol1"), "mapval1");
-    expectations.put(Maps.immutableEntry("", "mapcol2"), "mapval2");
-    expectations.put(Maps.immutableEntry("", "mapcol3"), "mapval3");
-    expectations.put(Maps.immutableEntry("", "mapcol4"), "mapval4");
+    ColumnUpdate update = colUpdates.get(0);
+    Assert.assertEquals("col1", new String(update.getColumnFamily()));
+    Assert.assertEquals("", new String(update.getColumnQualifier()));
+    Assert.assertEquals("value1", new String(update.getValue()));
     
-    for (ColumnUpdate update : colUpdates) {
+    Map<Entry<String,String>,String> expectations = Maps.newHashMap();
+    expectations.put(Maps.immutableEntry("col2", "mapcol1"), "mapval1");
+    expectations.put(Maps.immutableEntry("col2", "mapcol2"), "mapval2");
+    expectations.put(Maps.immutableEntry("col2", "mapcol3"), "mapval3");
+    expectations.put(Maps.immutableEntry("col2", "mapcol4"), "mapval4");
+    
+    for (int i = 1; i < 5; i++) {
+      update = colUpdates.get(i);
       Entry<String,String> key = Maps.immutableEntry(new String(update.getColumnFamily()), new String(update.getColumnQualifier()));
       String value = new String(update.getValue());
-      Assert.assertTrue(expectations.containsKey(key));
+      Assert.assertTrue("Did not find expected key: " + key, expectations.containsKey(key));
       
       String actual = expectations.remove(key);
       Assert.assertEquals(value, actual);
@@ -230,8 +308,52 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testWriteMapWithColFam() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("col");
+  public void testWriteMapWithColFamWithColon() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("col:");
+    
+    Map<String,Object> map = Maps.newHashMap();
+    
+    map.put("mapcol1", "mapval1");
+    map.put("mapcol2", "mapval2");
+    map.put("mapcol3", "mapval3");
+    map.put("mapcol4", "mapval4");
+    
+    Tuple t = TupleFactory.getInstance().newTuple(2);
+    t.set(0, "row");
+    t.set(1, map);
+    
+    Collection<Mutation> mutations = storage.getMutations(t);
+    
+    Assert.assertEquals(1, mutations.size());
+    
+    Mutation m = mutations.iterator().next();
+    
+    Assert.assertTrue("Rows not equal", Arrays.equals(m.getRow(), ((String) t.get(0)).getBytes()));
+    
+    List<ColumnUpdate> colUpdates = m.getUpdates();
+    Assert.assertEquals(4, colUpdates.size());
+    
+    Map<Entry<String,String>,String> expectations = Maps.newHashMap();
+    expectations.put(Maps.immutableEntry("col", "mapcol1"), "mapval1");
+    expectations.put(Maps.immutableEntry("col", "mapcol2"), "mapval2");
+    expectations.put(Maps.immutableEntry("col", "mapcol3"), "mapval3");
+    expectations.put(Maps.immutableEntry("col", "mapcol4"), "mapval4");
+    
+    for (ColumnUpdate update : colUpdates) {
+      Entry<String,String> key = Maps.immutableEntry(new String(update.getColumnFamily()), new String(update.getColumnQualifier()));
+      String value = new String(update.getValue());
+      Assert.assertTrue("Did not find expected key: " + key, expectations.containsKey(key));
+      
+      String actual = expectations.remove(key);
+      Assert.assertEquals(value, actual);
+    }
+    
+    Assert.assertTrue("Did not find all expectations", expectations.isEmpty());
+  }
+  
+  @Test
+  public void testWriteMapWithColFamWithColonAsterisk() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("col:*");
     
     Map<String,Object> map = Maps.newHashMap();
     
@@ -375,7 +497,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testReadMultipleColumnsAggregateColfams() throws IOException, ParseException {
+  public void testReadMultipleColumnsAggregateColfamsStar() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage("*");
     
     List<Key> keys = Lists.newArrayList();
@@ -416,7 +538,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testReadMultipleColumnsAggregateColfams() throws IOException, ParseException {
+  public void testReadMultipleColumnsEmptyString() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage("");
     
     List<Key> keys = Lists.newArrayList();
@@ -457,57 +579,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testReadMultipleColumnsNoAggregateColquals() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("*");
-    
-    List<Key> keys = Lists.newArrayList();
-    List<Value> values = Lists.newArrayList();
-    
-    keys.add(new Key("1", "col1", "cq1"));
-    keys.add(new Key("1", "col1", "cq2"));
-    keys.add(new Key("1", "col1", "cq3"));
-    keys.add(new Key("1", "col2", "cq1"));
-    keys.add(new Key("1", "col3", "cq1"));
-    keys.add(new Key("1", "col3", "cq2"));
-    
-    values.add(new Value("value1".getBytes()));
-    values.add(new Value("value2".getBytes()));
-    values.add(new Value("value3".getBytes()));
-    values.add(new Value("value1".getBytes()));
-    values.add(new Value("value1".getBytes()));
-    values.add(new Value("value2".getBytes()));
-    
-    Key k = new Key("1");
-    Value v = WholeRowIterator.encodeRow(keys, values);
-    
-    Tuple t = storage.getTuple(k, v);
-    
-    Assert.assertEquals(7, t.size());
-    
-    Assert.assertEquals("1", t.get(0).toString());
-    
-    InternalMap map = new InternalMap();
-    map.put("col1:cq1", new DataByteArray("value1"));
-    map.put("col1:cq2", new DataByteArray("value2"));
-    map.put("col1:cq3", new DataByteArray("value3"));
-    
-    Assert.assertEquals(map, t.get(1));
-    
-    map = new InternalMap();
-    map.put("col2:cq1", new DataByteArray("value1"));
-    
-    Assert.assertEquals(map, t.get(2));
-    
-    map = new InternalMap();
-    map.put("col3:cq1", new DataByteArray("value1"));
-    map.put("col3:cq2", new DataByteArray("value2"));
-    
-    Assert.assertEquals(map, t.get(3));
-  }
-  
-  @Test
   public void testReadMultipleColumnsNoColfamAggregate() throws IOException, ParseException {
-    // Aggregate defaults to off
     AccumuloStorage storage = new AccumuloStorage();
     
     List<Key> keys = Lists.newArrayList();

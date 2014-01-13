@@ -143,8 +143,15 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
    */
   private void parseColumns(String columnStr) {
     columns = new LinkedList<Column>();
-    for (String column : StringUtils.split(StringUtils.strip(columnStr), COMMA)) {
-      columns.add(new Column(column));
+    columnStr = StringUtils.strip(columnStr);
+    
+    if (!columnStr.isEmpty()) {
+      for (String column : StringUtils.split(columnStr, COMMA)) {
+        columns.add(new Column(column));
+      }
+    } else {
+      // Preserve original functionality for empty columns to fetch all data in a map
+      columns.add(new Column("*"));
     }
   }
 
@@ -551,7 +558,7 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     this.writer = writer;
   }
 
-  public abstract Collection<Mutation> getMutations(Tuple tuple) throws ExecException, IOException;
+  protected abstract Collection<Mutation> getMutations(Tuple tuple) throws ExecException, IOException;
 
   public void putNext(Tuple tuple) throws ExecException, IOException {
     Collection<Mutation> muts = getMutations(tuple);
