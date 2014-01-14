@@ -29,11 +29,11 @@ import org.junit.Test;
 /**
  * 
  */
-public class AccumuloStorageOptionsTest {
+public class TestAccumuloStorageOptions {
 
   @Test
   public void testFetchColumns() throws ParseException, IOException {
-    AbstractAccumuloStorage storage = AbstractAccumuloStorageTest.getAbstractAccumuloStorage("cf1,cf2:cq2");
+    AbstractAccumuloStorage storage = TestAbstractAccumuloStorage.getAbstractAccumuloStorage("cf1,cf2:cq2");
 
     List<Column> pairs = new LinkedList<Column>();
     pairs.add(new Column("cf1"));
@@ -44,7 +44,7 @@ public class AccumuloStorageOptionsTest {
 
   @Test
   public void testWriteColumns() throws ParseException, IOException {
-    AbstractAccumuloStorage storage = AbstractAccumuloStorageTest.getAbstractAccumuloStorage("foo,bar,baz,foo:bar,foo:baz");
+    AbstractAccumuloStorage storage = TestAbstractAccumuloStorage.getAbstractAccumuloStorage("foo,bar,baz,foo:bar,foo:baz");
 
     List<Column> columnNames = Arrays.asList(new Column("foo"), new Column("bar"), new Column("baz"), new Column("foo:bar"), new Column("foo:baz"));
 
@@ -53,24 +53,24 @@ public class AccumuloStorageOptionsTest {
 
   @Test
   public void testAuths() throws ParseException, IOException {
-    AbstractAccumuloStorage storage = AbstractAccumuloStorageTest.getAbstractAccumuloStorage("", "--authorizations auth1,auth2");
+    AbstractAccumuloStorage storage = TestAbstractAccumuloStorage.getAbstractAccumuloStorage("", "--authorizations auth1,auth2");
 
     Authorizations auths = new Authorizations("auth1,auth2");
 
     Assert.assertEquals(auths, storage.authorizations);
 
-    storage = AbstractAccumuloStorageTest.getAbstractAccumuloStorage("", "-auths auth1,auth2");
+    storage = TestAbstractAccumuloStorage.getAbstractAccumuloStorage("", "-auths auth1,auth2");
     Assert.assertEquals(auths, storage.authorizations);
   }
 
   @Test
   public void testStartEndRows() throws ParseException, IOException {
-    AbstractAccumuloStorage storage = AbstractAccumuloStorageTest.getAbstractAccumuloStorage("", "--start begin --end finish");
+    AbstractAccumuloStorage storage = TestAbstractAccumuloStorage.getAbstractAccumuloStorage("", "--start begin --end finish");
 
     Assert.assertEquals("begin", storage.start);
     Assert.assertEquals("finish", storage.end);
 
-    storage = AbstractAccumuloStorageTest.getAbstractAccumuloStorage("", "-s begin -e finish");
+    storage = TestAbstractAccumuloStorage.getAbstractAccumuloStorage("", "-s begin -e finish");
     Assert.assertEquals("begin", storage.start);
     Assert.assertEquals("finish", storage.end);
   }
@@ -80,14 +80,14 @@ public class AccumuloStorageOptionsTest {
     long buffSize = 1024 * 50;
     int writeThreads = 8, maxLatency = 30 * 1000;
 
-    AbstractAccumuloStorage storage = AbstractAccumuloStorageTest.getAbstractAccumuloStorage("", "--mutation-buffer-size " + buffSize + " --write-threads "
+    AbstractAccumuloStorage storage = TestAbstractAccumuloStorage.getAbstractAccumuloStorage("", "--mutation-buffer-size " + buffSize + " --write-threads "
         + writeThreads + " --max-latency " + maxLatency);
 
     Assert.assertEquals(buffSize, storage.maxMutationBufferSize);
     Assert.assertEquals(writeThreads, storage.maxWriteThreads);
     Assert.assertEquals(maxLatency, storage.maxLatency);
     
-    storage = AbstractAccumuloStorageTest.getAbstractAccumuloStorage("", "-buff " + buffSize + " -wt "
+    storage = TestAbstractAccumuloStorage.getAbstractAccumuloStorage("", "-buff " + buffSize + " -wt "
         + writeThreads + " -ml " + maxLatency);
 
     Assert.assertEquals(buffSize, storage.maxMutationBufferSize);

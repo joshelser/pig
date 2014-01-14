@@ -23,7 +23,7 @@ import org.junit.Test;
 /**
  * 
  */
-public class ColumnTest {
+public class TestAccumuloColumns {
 
   @Test(expected = NullPointerException.class)
   public void testNull() {

@@ -29,7 +29,6 @@ import org.apache.accumulo.core.data.Mutation;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.iterators.user.WholeRowIterator;
 import org.apache.commons.cli.ParseException;
-import org.apache.pig.LoadStoreCaster;
 import org.apache.pig.data.DataByteArray;
 import org.apache.pig.data.DataType;
 import org.apache.pig.data.InternalMap;
@@ -41,7 +40,7 @@ import org.junit.Test;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
-public class AccumuloStorageTest {
+public class TestAccumuloStorage {
   
   @Test
   public void testWrite1Tuple() throws IOException, ParseException {
@@ -55,15 +54,26 @@ public class AccumuloStorageTest {
     Assert.assertEquals(0, mutations.size());
   }
   
-  @Test
-  public void testWrite2TupleNoColumn() throws IOException, ParseException {
+  @Test(expected = ClassCastException.class)
+  public void testWriteLiteralAsMap() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage();
     
     Tuple t = TupleFactory.getInstance().newTuple(2);
     t.set(0, "row");
     t.set(1, "value");
     
-    Assert.assertEquals(0, storage.getMutations(t).size());
+    storage.getMutations(t).size();
+  }
+  
+  @Test(expected = ClassCastException.class)
+  public void testWriteLiteralAsMapWithAsterisk() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("*");
+    
+    Tuple t = TupleFactory.getInstance().newTuple(2);
+    t.set(0, "row");
+    t.set(1, "value");
+    
+    storage.getMutations(t).size();
   }
   
   @Test
@@ -397,7 +407,7 @@ public class AccumuloStorageTest {
   
   @Test
   public void testWriteMapWithColFamColQualPrefix() throws IOException, ParseException {
-    AccumuloStorage storage = new AccumuloStorage("col:qual_");
+    AccumuloStorage storage = new AccumuloStorage("col:qual_*");
     
     Map<String,Object> map = Maps.newHashMap();
     
@@ -497,7 +507,7 @@ public class AccumuloStorageTest {
   }
   
   @Test
-  public void testReadMultipleColumnsAggregateColfamsStar() throws IOException, ParseException {
+  public void testReadMultipleColumnsAggregateColfamsAsterisk() throws IOException, ParseException {
     AccumuloStorage storage = new AccumuloStorage("*");
     
     List<Key> keys = Lists.newArrayList();
@@ -533,6 +543,38 @@ public class AccumuloStorageTest {
     map.put("col2:cq1", new DataByteArray("value1"));
     map.put("col3:cq1", new DataByteArray("value1"));
     map.put("col3:cq2", new DataByteArray("value2"));
+    
+    Assert.assertEquals(map, t.get(1));
+  }
+  
+  @Test
+  public void testReadMultipleColumnsAggregateColfamsAsteriskEmptyColfam() throws IOException, ParseException {
+    AccumuloStorage storage = new AccumuloStorage("*");
+    
+    List<Key> keys = Lists.newArrayList();
+    List<Value> values = Lists.newArrayList();
+    
+    keys.add(new Key("1", "col1", ""));
+    keys.add(new Key("1", "col2", ""));
+    keys.add(new Key("1", "col3", ""));
+    
+    values.add(new Value("value1".getBytes()));
+    values.add(new Value("value2".getBytes()));
+    values.add(new Value("value3".getBytes()));
+    
+    Key k = new Key("1");
+    Value v = WholeRowIterator.encodeRow(keys, values);
+    
+    Tuple t = storage.getTuple(k, v);
+    
+    Assert.assertEquals(2, t.size());
+    
+    Assert.assertEquals("1", t.get(0).toString());
+    
+    InternalMap map = new InternalMap();
+    map.put("col1", new DataByteArray("value1"));
+    map.put("col2", new DataByteArray("value2"));
+    map.put("col3", new DataByteArray("value3"));
     
     Assert.assertEquals(map, t.get(1));
   }

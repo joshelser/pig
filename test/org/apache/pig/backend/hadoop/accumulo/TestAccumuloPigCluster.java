@@ -49,7 +49,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
 
-public class AccumuloPigClusterTest {
+public class TestAccumuloPigCluster {
 
   @SuppressWarnings("unchecked")
   private static final List<ImmutableMap<String,String>> AIRPORTS = Lists.newArrayList(ImmutableMap.of("code", "SJC", "name", "San Jose"),
@@ -63,7 +63,7 @@ public class AccumuloPigClusterTest {
       ImmutableMap.of("origin", "MDO", "destination", "SJC"), ImmutableMap.of("origin", "SJC", "destination", "JFK"),
       ImmutableMap.of("origin", "JFK", "destination", "MDW"));
 
-  private static final Logger log = Logger.getLogger(AccumuloPigClusterTest.class);
+  private static final Logger log = Logger.getLogger(TestAccumuloPigCluster.class);
   private static final File tmpdir = Files.createTempDir();
   private static MiniAccumuloCluster accumuloCluster;
   private static MiniCluster cluster;

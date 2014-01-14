@@ -51,7 +51,7 @@ import org.apache.pig.data.Tuple;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class AbstractAccumuloStorageTest {
+public class TestAbstractAccumuloStorage {
   
   public static void assertConfigurationsEqual(Configuration expectedConf, Configuration actualConf) {
     // Make sure the values in both confs are equal
