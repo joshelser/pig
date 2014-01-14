@@ -152,8 +152,7 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
       if (null != colfamPrefix) {
         aggregateMap = new HashMap<String,DataByteArray>();
         
-        aggregateMap.put(cfHolder + COLON + cqHolder, 
-            new DataByteArray(currentValue.get()));
+        aggregate(aggregateMap, cfHolder, cqHolder, currentValue);
         
         // Aggregate as long as we match the given prefix
         Text colfamToAggregate = new Text(colfamPrefix);
@@ -167,8 +166,8 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
           if (prefixMatch(cfHolder, colfamToAggregate)) {
             // Consume the key/value
             iter.next();
-            aggregateMap.put(cfHolder + COLON + cqHolder, 
-                new DataByteArray(currentValue.get()));
+
+            aggregate(aggregateMap, cfHolder, cqHolder, currentValue);
           } else {
             break;
           }
@@ -184,7 +183,8 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
         
         if (prefixMatch(cqHolder, desiredColqualPrefix)) {
           aggregateMap = new HashMap<String,DataByteArray>();
-          aggregateMap.put(cfHolder + COLON + cqHolder, new DataByteArray(currentValue.get()));
+
+          aggregate(aggregateMap, cfHolder, cqHolder, currentValue);
           
           Text colfamToAggregate = new Text(cfHolder);
           while (iter.hasNext()) {
@@ -196,7 +196,8 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
             
             if (colfamToAggregate.equals(cfHolder) && prefixMatch(cqHolder, desiredColqualPrefix)) {
               iter.next();
-              aggregateMap.put(cfHolder + COLON + cqHolder, new DataByteArray(currentValue.get()));
+
+              aggregate(aggregateMap, cfHolder, cqHolder, currentValue);
             } else {
               break;
             }
@@ -259,6 +260,14 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
     return true;
   }
   
+  protected void aggregate(Map<String,DataByteArray> map, Text cf, Text cq, Value value) {
+    if (0 == cq.getLength()) {
+      map.put(cf.toString(), new DataByteArray(value.get()));
+    } else {
+      map.put(cf + COLON + cq, new DataByteArray(value.get()));
+    }
+  }
+  
   @Override
   protected void configureInputFormat(Job job) {
     AccumuloInputFormat.addIterator(job, new IteratorSetting(100, WholeRowIterator.class));
@@ -299,8 +308,13 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
           break;
         case COLFAM_PREFIX:
         case COLQUAL_PREFIX:
-          @SuppressWarnings("unchecked")
-          Map<String,Object> map = (Map<String,Object>) o;
+          Map<String,Object> map;
+          try {
+            map = (Map<String,Object>) o;
+          } catch (ClassCastException e) {
+            log.error("Expected Map at tuple offset " + tupleOffset + " but was " + o.getClass().getSimpleName());
+            throw e;
+          }
           
           for (Entry<String,Object> entry : map.entrySet()) {
             String key = entry.getKey();
