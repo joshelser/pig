@@ -95,4 +95,13 @@ public class TestAccumuloStorageOptions {
     Assert.assertEquals(maxLatency, storage.maxLatency);
   }
 
+  @Test
+  public void testColumnOptions() throws ParseException, IOException {
+    AbstractAccumuloStorage storage = TestAbstractAccumuloStorage.getAbstractAccumuloStorage("foo-bar ", "--ignore-whitespace false --separator -");
+    
+    Assert.assertEquals(2, storage.columns.size());
+    
+    Assert.assertEquals("foo", storage.columns.get(0).getColumnFamily());
+    Assert.assertEquals("bar ", storage.columns.get(1).getColumnFamily());
+  }
 }

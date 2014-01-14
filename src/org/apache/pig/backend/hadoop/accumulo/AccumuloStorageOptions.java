@@ -35,7 +35,9 @@ public class AccumuloStorageOptions {
       END_ROW_OPTION = new Option("e", "end", true, "The row to read until, inclusive"),
       MUTATION_BUFFER_SIZE_OPTION = new Option("buff", "mutation-buffer-size", true, "Number of bytes to buffer when writing data"),
       WRITE_THREADS_OPTION = new Option("wt", "write-threads", true, "Number of threads to use when writing data"),
-      MAX_LATENCY_OPTION = new Option("ml", "max-latency", true, "Maximum latency in milliseconds before Mutations are flushed to Accumulo");
+      MAX_LATENCY_OPTION = new Option("ml", "max-latency", true, "Maximum latency in milliseconds before Mutations are flushed to Accumulo"),
+      COLUMN_SEPARATOR_OPTION = new Option("sep", "separator", true, "Separator string to use when parsing columns"),
+      COLUMN_IGNORE_WHITESPACE_OPTION = new Option("iw", "ignore-whitespace", true, "Whether or not whitespace should be stripped from column list");
     
   
   private Options options;
@@ -52,11 +54,14 @@ public class AccumuloStorageOptions {
     options.addOption(MUTATION_BUFFER_SIZE_OPTION);
     options.addOption(WRITE_THREADS_OPTION);
     options.addOption(MAX_LATENCY_OPTION);
+    options.addOption(COLUMN_SEPARATOR_OPTION);
+    options.addOption(COLUMN_IGNORE_WHITESPACE_OPTION);
   }
   
   public String getHelpMessage() {
     return "[(-c|--caster) LoadStoreCasterImpl] [(-auths|--authorizations auth1,auth2,auth3] [(-s|--start) startrow]"
-        + " [(-e|--end) endrow] [(-buff|--mutation-buffer-size) bytes] [(-wt|--write-threads) threads] [(-ml|--max-latency) seconds]";
+        + " [(-e|--end) endrow] [(-buff|--mutation-buffer-size) bytes] [(-wt|--write-threads) threads] [(-ml|--max-latency) seconds]"
+        + " [(-sep|--separator) ,] [(-iw|--ignore-whitespace) true|false]";
   }
   
   public CommandLine getCommandLine(String args) throws ParseException {

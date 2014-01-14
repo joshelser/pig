@@ -119,7 +119,10 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
   protected int maxWriteThreads = 3;
   protected long maxMutationBufferSize = 50 * 1024 * 1024l;
   protected long maxLatency = Long.MAX_VALUE;
-
+  
+  protected String columnSeparator = ",";
+  protected boolean ignoreWhitespace = true;
+  
   protected LoadStoreCaster caster;
   protected ResourceSchema schema;
   protected String contextSignature = null;
@@ -128,11 +131,11 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
     storageOptions = new AccumuloStorageOptions();
     commandLine = storageOptions.getCommandLine(args);
 
-    // Split out the user provided columns
-    parseColumns(columns);
-
     // Extract any command line args
     extractArgs(commandLine, storageOptions);
+
+    // Split out the user provided columns
+    parseColumns(columns);
   }
 
   /**
@@ -143,11 +146,13 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
    */
   private void parseColumns(String columnStr) {
     columns = new LinkedList<Column>();
-    columnStr = StringUtils.strip(columnStr);
+    if (ignoreWhitespace) {
+      columnStr = StringUtils.strip(columnStr);
+    }
     
     if (!columnStr.isEmpty()) {
-      for (String column : StringUtils.split(columnStr, COMMA)) {
-        columns.add(new Column(column));
+      for (String column : StringUtils.split(columnStr, columnSeparator)) {
+        columns.add(new Column(ignoreWhitespace ? StringUtils.strip(column) : column));
       }
     } else {
       // Preserve original functionality for empty columns to fetch all data in a map
@@ -204,6 +209,21 @@ public abstract class AbstractAccumuloStorage extends LoadFunc implements StoreF
       }
     }
     log.debug("Using caster " + caster.getClass());
+    
+    if (cli.hasOption(AccumuloStorageOptions.COLUMN_SEPARATOR_OPTION.getOpt())) {
+      columnSeparator = cli.getOptionValue(AccumuloStorageOptions.COLUMN_SEPARATOR_OPTION.getOpt());
+    }
+    
+    if (cli.hasOption(AccumuloStorageOptions.COLUMN_IGNORE_WHITESPACE_OPTION.getOpt())) {
+      String value = cli.getOptionValue(AccumuloStorageOptions.COLUMN_IGNORE_WHITESPACE_OPTION.getOpt());
+      if ("false".equalsIgnoreCase(value)) {
+        ignoreWhitespace = false;
+      } else if ("true".equalsIgnoreCase(value)) {
+        ignoreWhitespace = true;
+      } else {
+        log.warn("Ignoring unknown value for " + AccumuloStorageOptions.COLUMN_IGNORE_WHITESPACE_OPTION.getOpt() + ": " + value);
+      }
+    }
   }
 
   protected CommandLine getCommandLine() {

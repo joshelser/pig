@@ -40,11 +40,9 @@ public class Column {
   public Column(String col) {
     Preconditions.checkNotNull(col);
     
-    String strippedCol = StringUtils.strip(col);
-    
-    int index = strippedCol.indexOf(AbstractAccumuloStorage.COLON);
+    int index = col.indexOf(AbstractAccumuloStorage.COLON);
     if (-1 == index) {
-      columnFamily = strippedCol;
+      columnFamily = col;
       columnQualifier = null;
       
       if (columnFamily.endsWith(AbstractAccumuloStorage.ASTERISK)) {
@@ -54,12 +52,12 @@ public class Column {
         columnType = Type.LITERAL;
       }
     } else {
-      if (1 == strippedCol.length()) {
-        throw new IllegalArgumentException("Cannot parse '" + strippedCol + "'");
+      if (1 == col.length()) {
+        throw new IllegalArgumentException("Cannot parse '" + col + "'");
       }
       
-      columnFamily = strippedCol.substring(0, index);
-      columnQualifier = strippedCol.substring(index + 1);
+      columnFamily = col.substring(0, index);
+      columnQualifier = col.substring(index + 1);
       
       // TODO Handle colf*:colq* ?
       if (columnFamily.endsWith(AbstractAccumuloStorage.ASTERISK)) {
