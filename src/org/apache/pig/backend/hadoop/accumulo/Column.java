@@ -16,8 +16,6 @@
  */
 package org.apache.pig.backend.hadoop.accumulo;
 
-import org.apache.commons.lang.StringUtils;
-
 import com.google.common.base.Preconditions;
 
 /**
@@ -84,6 +82,10 @@ public class Column {
   
   public String getColumnQualifier() {
     return columnQualifier;
+  }
+  
+  public boolean matchAll() {
+    return Type.COLFAM_PREFIX.equals(columnType) && "".equals(columnFamily);
   }
   
   @Override

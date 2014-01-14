@@ -17,22 +17,20 @@
 package org.apache.pig.backend.hadoop.accumulo;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.SortedMap;
-import java.util.TreeMap;
-import java.util.TreeSet;
 
 import org.apache.accumulo.core.client.IteratorSetting;
 import org.apache.accumulo.core.client.mapreduce.AccumuloInputFormat;
 import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Mutation;
+import org.apache.accumulo.core.data.PartialKey;
+import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.iterators.user.WholeRowIterator;
 import org.apache.commons.cli.ParseException;
@@ -45,10 +43,6 @@ import org.apache.pig.data.DataByteArray;
 import org.apache.pig.data.DataType;
 import org.apache.pig.data.Tuple;
 import org.apache.pig.data.TupleFactory;
-
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
-import com.google.common.collect.PeekingIterator;
 
 /**
  * Basic PigStorage implementation that uses Accumulo as the backing store.
@@ -75,21 +69,11 @@ import com.google.common.collect.PeekingIterator;
 public class AccumuloStorage extends AbstractAccumuloStorage {
   private static final Logger log = Logger.getLogger(AccumuloStorage.class);
   private static final String COLON = ":", EMPTY = "";
-  
-  public static final String METADATA_SUFFIX = "_metadata";
+  private static final Text EMPTY_TEXT = new Text(new byte[0]);
+  private static final DataByteArray EMPTY_DATA_BYTE_ARRAY = new DataByteArray(new byte[0]);
   
   // Not sure if AccumuloStorage instances need to be thread-safe or not
   final Text _cfHolder = new Text(), _cqHolder = new Text();
-  
-  /**
-   * Contains column families prefixes (without asterisk) that were fetched
-   */
-  protected TreeSet<Text> colfamPrefixes = new TreeSet<Text>();
-  
-  /**
-   * Contains column families to column qualifier prefixes (without asterisk) that were fetched
-   */
-  protected TreeMap<Text,Text> colqualPrefixes = new TreeMap<Text,Text>();
   
   /**
    * Creates an AccumuloStorage which writes all values in a {@link Tuple} with an empty column family
@@ -113,159 +97,133 @@ public class AccumuloStorage extends AbstractAccumuloStorage {
   
   public AccumuloStorage(String columnStr, String args) throws ParseException, IOException {
     super(columnStr, args);
-    
-    
-    for (Column col : this.columns) {
-      switch(col.getType()) {
-        case COLFAM_PREFIX:
-          colfamPrefixes.add(new Text(col.getColumnFamily()));
-          break;
-        case COLQUAL_PREFIX:
-          colqualPrefixes.put(new Text(col.getColumnFamily()), new Text(col.getColumnQualifier()));
-          break;
-        default:
-          break;
-      }
-    }
   }
   
   @Override
   protected Tuple getTuple(Key key, Value value) throws IOException {
     SortedMap<Key,Value> rowKVs = WholeRowIterator.decodeRow(key, value);
-    
-    List<Object> tupleEntries = Lists.newLinkedList();
-    PeekingIterator<Entry<Key,Value>> iter = Iterators.peekingIterator(rowKVs.entrySet().iterator());
-    Entry<Key,Value> currentEntry;
-    Map<String,DataByteArray> aggregateMap;
+    Tuple tuple = TupleFactory.getInstance().newTuple(columns.size() + 1);
+
     final Text cfHolder = new Text();
     final Text cqHolder = new Text();
+    final Text row = key.getRow();
+    int tupleOffset = 0;
     
-    while (iter.hasNext()) {
-      currentEntry = iter.next();
-      Key currentKey = currentEntry.getKey();
-      Value currentValue = currentEntry.getValue();
-      currentKey.getColumnFamily(cfHolder);
-      currentKey.getColumnQualifier(cqHolder);
+    tuple.set(tupleOffset, new DataByteArray(Text.decode(row.getBytes(), 0, row.getLength())));
+    
+    for (Column column : this.columns) {
+      tupleOffset++;
       
-      // Colfam prefixes take priority over colqual prefixes
-      Text colfamPrefix = findPrefixMatch(cfHolder, colfamPrefixes);
-      if (null != colfamPrefix) {
-        aggregateMap = new HashMap<String,DataByteArray>();
-        
-        aggregate(aggregateMap, cfHolder, cqHolder, currentValue);
-        
-        // Aggregate as long as we match the given prefix
-        Text colfamToAggregate = new Text(colfamPrefix);
-        while (iter.hasNext()) {
-          currentEntry = iter.peek();
-          currentKey = currentEntry.getKey();
-          currentValue = currentEntry.getValue();
-          currentKey.getColumnFamily(cfHolder);
-          currentKey.getColumnQualifier(cqHolder);
-          
-          if (prefixMatch(cfHolder, colfamToAggregate)) {
-            // Consume the key/value
-            iter.next();
-
-            aggregate(aggregateMap, cfHolder, cqHolder, currentValue);
+      switch(column.getType()) {
+        case LITERAL:
+          cfHolder.set(column.getColumnFamily());
+          if (null != column.getColumnQualifier()) {
+            cqHolder.set(column.getColumnQualifier());
           } else {
-            break;
+            cqHolder.set(EMPTY_TEXT);
           }
-        }
-        
-        tupleEntries.add(aggregateMap);
-        continue;
-      } else if (colqualPrefixes.containsKey(cfHolder)) {
-        aggregateMap = new HashMap<String,DataByteArray>();
-        
-        // We're aggregating some portion of the colqual in this colfam
-        Text desiredColqualPrefix = colqualPrefixes.get(cfHolder);
-        
-        if (prefixMatch(cqHolder, desiredColqualPrefix)) {
-          aggregateMap = new HashMap<String,DataByteArray>();
-
-          aggregate(aggregateMap, cfHolder, cqHolder, currentValue);
           
-          Text colfamToAggregate = new Text(cfHolder);
-          while (iter.hasNext()) {
-            currentEntry = iter.peek();
-            currentKey = currentEntry.getKey();
-            currentValue = currentEntry.getValue();
-            currentKey.getColumnFamily(cfHolder);
-            currentKey.getColumnQualifier(cqHolder);
+          // Get the key where our literal would exist (accounting for "colf:colq" or "colf:" empty colq) 
+          Key literalStartKey = new Key(row, cfHolder, cqHolder);
+          
+          SortedMap<Key,Value> tailMap = rowKVs.tailMap(literalStartKey);
+          
+          // Find the element
+          if (tailMap.isEmpty()) {
+            tuple.set(tupleOffset, EMPTY_DATA_BYTE_ARRAY);
+          } else {
+            Key actualKey = tailMap.firstKey();
             
-            if (colfamToAggregate.equals(cfHolder) && prefixMatch(cqHolder, desiredColqualPrefix)) {
-              iter.next();
-
-              aggregate(aggregateMap, cfHolder, cqHolder, currentValue);
+            // Only place it in the tuple if it matches the user request, avoid using a value from a 
+            // key with the wrong colqual
+            if (0 == literalStartKey.compareTo(actualKey, PartialKey.ROW_COLFAM_COLQUAL)) {
+              tuple.set(tupleOffset, new DataByteArray(tailMap.get(actualKey).get()));
             } else {
-              break;
+              // This row doesn't have the column we were looking for
+              tuple.set(tupleOffset, EMPTY_DATA_BYTE_ARRAY);
             }
           }
           
-          tupleEntries.add(aggregateMap);
-        } else {
-          // When we don't, we had to match this colqual because it was specifically chosen
-          tupleEntries.add(new DataByteArray(currentValue.get()));
-        }
-      } else {
-        // It's a literal, just add it
-        tupleEntries.add(new DataByteArray(currentValue.get()));
+          break;
+        case COLFAM_PREFIX:
+          cfHolder.set(column.getColumnFamily());
+          Range colfamPrefixRange = Range.prefix(row, cfHolder);
+          Key colfamPrefixStartKey = new Key(row, cfHolder);
+          
+          SortedMap<Key,Value> cfTailMap = rowKVs.tailMap(colfamPrefixStartKey);
+          
+          // Find the element
+          if (cfTailMap.isEmpty()) {
+            tuple.set(tupleOffset, EMPTY_DATA_BYTE_ARRAY);
+          } else {
+            HashMap<String,DataByteArray> tupleMap = new HashMap<String,DataByteArray>();
+            
+            // Build up a map for all the entries in this row that match the colfam prefix
+            for (Entry<Key,Value> entry : cfTailMap.entrySet()) {
+              if (colfamPrefixRange.contains(entry.getKey())) {
+                entry.getKey().getColumnFamily(cfHolder);
+                entry.getKey().getColumnQualifier(cqHolder);
+                DataByteArray val = new DataByteArray(entry.getValue().get());
+                
+                // Avoid adding an extra ':' when colqual is empty
+                if (0 == cqHolder.getLength()) {
+                  tupleMap.put(cfHolder.toString(), val);
+                } else {
+                  tupleMap.put(cfHolder.toString() + COLON + cqHolder.toString(), val);
+                }
+              } else {
+                break;
+              }
+            }
+            
+            if (!tupleMap.isEmpty()) {
+              tuple.set(tupleOffset, tupleMap);
+            }
+          }
+          
+          break;
+        case COLQUAL_PREFIX:
+          cfHolder.set(column.getColumnFamily());
+          cqHolder.set(column.getColumnQualifier());
+          Range colqualPrefixRange = Range.prefix(row, cfHolder, cqHolder);
+          Key colqualPrefixStartKey = new Key(row, cfHolder, cqHolder);
+          
+          SortedMap<Key,Value> cqTailMap = rowKVs.tailMap(colqualPrefixStartKey);
+          if (cqTailMap.isEmpty()) {
+            tuple.set(tupleOffset, EMPTY_DATA_BYTE_ARRAY);
+          } else {
+            HashMap<String,DataByteArray> tupleMap = new HashMap<String,DataByteArray>();
+            
+            // Build up a map for all the entries in this row that match the colqual prefix
+            for (Entry<Key,Value> entry : cqTailMap.entrySet()) {
+              if (colqualPrefixRange.contains(entry.getKey())) {
+                entry.getKey().getColumnFamily(cfHolder);
+                entry.getKey().getColumnQualifier(cqHolder);
+                DataByteArray val = new DataByteArray(entry.getValue().get());
+
+                // Avoid the extra ':' on empty colqual
+                if (0 == cqHolder.getLength()) {
+                  tupleMap.put(cfHolder.toString(), val);
+                } else {
+                  tupleMap.put(cfHolder.toString() + COLON + cqHolder.toString(), val);
+                }
+              } else {
+                break;
+              }
+            }
+            
+            if (!tupleMap.isEmpty()) {
+              tuple.set(tupleOffset, tupleMap);
+            }
+          }
+          
+          break;
+        default:
+          break;
       }
-    }
-    
-    // and wrap it in a tuple
-    Tuple tuple = TupleFactory.getInstance().newTuple(tupleEntries.size() + 1);
-    tuple.set(0, key.getRow().toString());
-    int i = 1;
-    for (Object obj : tupleEntries) {
-      tuple.set(i, obj);
-      i++;
     }
     
     return tuple;
-  }
-  
-  protected Text findPrefixMatch(Text value, Collection<Text> potentialMatches) {
-    for (Text potentialMatch : potentialMatches) {
-      if (prefixMatch(value, potentialMatch)) {
-        return potentialMatch;
-      }
-    }
-    
-    return null;
-  }
-  
-  /**
-   * Returns true if the value starts with prefix
-   * @param value
-   * @param prefix
-   * @return
-   */
-  protected boolean prefixMatch(Text value, Text prefix) {
-    // Can't match a longer prefix
-    if (value.getLength() < prefix.getLength()) {
-      return false;
-    }
-    
-    ByteBuffer valueBuf = ByteBuffer.wrap(value.getBytes(), 0, value.getLength()),
-        prefixBuf = ByteBuffer.wrap(prefix.getBytes(), 0, prefix.getLength());
-    
-    for (int i = 0; i < prefixBuf.limit(); i++) {
-      if (valueBuf.get(i) != prefixBuf.get(i)) {
-        return false;
-      }
-    }
-    
-    return true;
-  }
-  
-  protected void aggregate(Map<String,DataByteArray> map, Text cf, Text cq, Value value) {
-    if (0 == cq.getLength()) {
-      map.put(cf.toString(), new DataByteArray(value.get()));
-    } else {
-      map.put(cf + COLON + cq, new DataByteArray(value.get()));
-    }
   }
   
   @Override
