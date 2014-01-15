@@ -33,17 +33,16 @@ import org.apache.pig.data.DataBag;
 import org.apache.pig.data.DataByteArray;
 import org.apache.pig.data.Tuple;
 import org.joda.time.DateTime;
+import org.python.google.common.base.Preconditions;
 
 /**
- * A LoadStoreCaster implementation which stores most type implementations as bytes generated
- * from the toString representation with a UTF8 Charset. Pulled some implementations from the
- * Accumulo Lexicoder implementations in 1.6.0.
+ * A LoadStoreCaster implementation which stores most type implementations as bytes generated from the toString representation with a UTF8 Charset. Pulled some
+ * implementations from the Accumulo Lexicoder implementations in 1.6.0.
  */
 public class AccumuloBinaryConverter implements LoadStoreCaster {
+  private static final int SIZE_OF_INT = Integer.SIZE / Byte.SIZE;
+  private static final int SIZE_OF_LONG = Long.SIZE / Byte.SIZE;
 
-  // TODO There is definitely a better implementation that does not rely on
-  // stringification that would be much more efficient.
-  
   /**
    * NOT IMPLEMENTED
    */
@@ -75,8 +74,8 @@ public class AccumuloBinaryConverter implements LoadStoreCaster {
 
   @Override
   public Boolean bytesToBoolean(byte[] b) throws IOException {
-    String s = new String(b, Constants.UTF8);
-    return Boolean.parseBoolean(s);
+    Preconditions.checkArgument(1 == b.length);
+    return b[0] == (byte) 1;
   }
 
   @Override
@@ -95,26 +94,34 @@ public class AccumuloBinaryConverter implements LoadStoreCaster {
 
   @Override
   public Double bytesToDouble(byte[] b) throws IOException {
-    String s = new String(b, Constants.UTF8);
-    return Double.parseDouble(s);
+    return Double.longBitsToDouble(bytesToLong(b));
   }
 
   @Override
   public Float bytesToFloat(byte[] b) throws IOException {
-    String s = new String(b, Constants.UTF8);
-    return Float.parseFloat(s);
+    return Float.intBitsToFloat(bytesToInteger(b));
   }
 
   @Override
   public Integer bytesToInteger(byte[] b) throws IOException {
-    String s = new String(b, Constants.UTF8);
-    return Integer.parseInt(s);
+    Preconditions.checkArgument(b.length == SIZE_OF_INT);
+    int n = 0;
+    for (int i = 0; i < b.length; i++) {
+      n <<= 8;
+      n ^= b[i] & 0xFF;
+    }
+    return n;
   }
 
   @Override
   public Long bytesToLong(byte[] b) throws IOException {
-    String s = new String(b, Constants.UTF8);
-    return Long.parseLong(s);
+    Preconditions.checkArgument(b.length == SIZE_OF_LONG);
+    long l = 0;
+    for (int i = 0; i < b.length; i++) {
+      l <<= 8;
+      l ^= b[i] & 0xFF;
+    }
+    return l;
   }
 
   /**
@@ -168,7 +175,7 @@ public class AccumuloBinaryConverter implements LoadStoreCaster {
 
   @Override
   public byte[] toBytes(Boolean b) throws IOException {
-    return b.toString().getBytes(Constants.UTF8);
+    return new byte[] { b ? (byte) 1 : (byte) 0 };
   }
 
   /**
@@ -191,22 +198,36 @@ public class AccumuloBinaryConverter implements LoadStoreCaster {
 
   @Override
   public byte[] toBytes(Double d) throws IOException {
-    return d.toString().getBytes(Constants.UTF8);
+    return toBytes(Double.doubleToRawLongBits(d));
   }
 
   @Override
   public byte[] toBytes(Float f) throws IOException {
-    return f.toString().getBytes(Constants.UTF8);
+    return toBytes(Float.floatToRawIntBits(f));
   }
 
   @Override
-  public byte[] toBytes(Integer i) throws IOException {
-    return i.toString().getBytes(Constants.UTF8);
+  public byte[] toBytes(Integer val) throws IOException {
+    int intVal = val.intValue();
+    byte[] b = new byte[4];
+    for (int i = 3; i > 0; i--) {
+      b[i] = (byte) intVal;
+      intVal >>>= 8;
+    }
+    b[0] = (byte) intVal;
+    return b;
   }
 
   @Override
-  public byte[] toBytes(Long l) throws IOException {
-    return l.toString().getBytes(Constants.UTF8);
+  public byte[] toBytes(Long val) throws IOException {
+    long longVal = val.longValue();
+    byte[] b = new byte[8];
+    for (int i = 7; i > 0; i--) {
+      b[i] = (byte) longVal;
+      longVal >>>= 8;
+    }
+    b[0] = (byte) longVal;
+    return b;
   }
 
   /**
